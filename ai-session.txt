@@ -1,0 +1,232 @@
+# JUnitXML Module Development Session Log
+
+**Date:** 21 March 2026  
+**Project:** JUnitXML - RISC OS Module for JUnit XML Output  
+**Location:** /Users/charles/home/RO/qwen
+
+---
+
+## Session Overview
+
+This session involved creating a complete RISC OS module for generating JUnit XML test output files, following the design specification in `JUnitXML.md`. The implementation was built using the riscos-amu toolchain with a modular, testable architecture.
+
+---
+
+## Requirements (from JUnitXML.md)
+
+- Multiple outputs created with handles
+- Test suites with: name, package, hostname, id, time, timestamp, tests/failures/errors/skipped counts, properties, system-out, system-err
+- Test cases with: classname, name, time, file, line, id, status, failure_type, failure_message, system-out, system-err
+- SWI interface: JUnitXML_Create, JUnitXML_TestSuite, JUnitXML_TestCase, JUnitXML_Close
+- Incremental file output
+
+---
+
+## Development Steps
+
+### 1. Project Setup
+
+```bash
+riscos-project create --type cmodule --name JUnitXML --skeleton
+```
+
+Created the basic RISC OS module skeleton with:
+- `Makefile,fe1` - Build configuration
+- `cmhg/modhead` - Module definition
+- `c/module` - Module entry points
+- `VersionNum` - Version information
+
+### 2. Architecture Design
+
+Decided on a three-layer architecture for modularity and testability:
+
+1. **junit_xml_writer** - Platform-independent XML generation (testable without RISC OS)
+2. **junit_state** - State management for handles, suites, test cases
+3. **module** - RISC OS SWI interface layer
+
+### 3. Core Implementation
+
+#### Created Files:
+
+**h/junit_types** - Data type definitions
+- `junit_test_status_t` enum (NONE, SUCCESS, FAILURE, ERROR, SKIPPED)
+- `junit_suite_op_t` enum (CREATE, CLOSE, UPDATE, PROPERTY)
+- `junit_case_op_t` enum (CREATE, CLOSE, UPDATE)
+- `junit_timestamp_format_t` enum (CURRENT, RISCOS, UNIX, ISO8601)
+- `junit_property_t` struct
+- `junit_testcase_t` struct
+- `junit_testsuite_t` struct
+- `junit_handle_t` struct
+- `junit_global_state_t` struct
+
+**h/junit_xml_writer** - XML writer interface
+**c/junit_xml_writer** - XML writer implementation
+- `junit_xml_write_header()` - XML declaration and root element
+- `junit_xml_write_footer()` - Close root element
+- `junit_xml_write_testsuite_open()` - Suite opening tag with attributes
+- `junit_xml_write_testsuite_close()` - Suite closing tag
+- `junit_xml_write_property()` - Single property element
+- `junit_xml_write_properties()` - Properties container
+- `junit_xml_write_testcase()` - Complete test case element
+- `junit_xml_write_system_out()` / `junit_xml_write_system_err()` - Output elements
+- `junit_xml_write_escaped_string()` - XML character escaping
+
+**h/junit_state** - State manager interface
+**c/junit_state** - State manager implementation
+- `junit_state_init()` / `junit_state_final()` - Lifecycle management
+- `junit_create()` - Create new handle
+- `junit_close()` - Close handle and finalize output
+- `junit_suite_create()` / `junit_suite_close()` - Suite management
+- `junit_suite_set_property()` - Add properties to suites
+- `junit_case_create()` / `junit_case_close()` - Test case management
+- Helper functions: `junit_strdup()`, `junit_strfree()`, `junit_get_current_timestamp()`
+
+**h/JUnitXMLSWIs** - SWI constants and flag definitions
+**c/module** - RISC OS module SWI handlers
+- `Mod_SWICreate()` - Handle creation
+- `Mod_SWITestSuite()` - Suite operations (create/close/property)
+- `Mod_SWITestCase()` - Test case operations (create/close)
+- `Mod_SWIClose()` - Handle finalization
+- `Mod_Init()` / `Mod_Final()` - Module lifecycle
+- Helper: `riscos_time_to_iso8601()`, `unix_time_to_iso8601()`, `make_error()`
+
+### 4. Configuration Updates
+
+**cmhg/modhead** - Updated module definition:
+- Added SWI chunk base number: `&C0000`
+- Added error base: `&840000`
+- Defined SWI decoding table with handler mappings
+
+**Makefile,fe1** - Updated build configuration:
+- Added `o.junit_state` and `o.junit_xml_writer` to OBJS
+- Added dependency rules for new source files
+- Added export rules for SWI header
+
+### 5. Build Process
+
+Initial build issues encountered and resolved:
+
+1. **Header file naming** - RISC OS convention uses `.h` in `#include` but files stored without extension
+   - Fixed: Headers stored as `junit_types`, `junit_xml_writer`, etc.
+   - Includes use: `#include "junit_types.h"`
+
+2. **CMunge syntax error** - SWI decoding table had incorrect multi-line format
+   - Fixed: Consolidated to single line format
+
+3. **Missing SWI chunk** - Module defined SWIs but no chunk base number
+   - Fixed: Uncommented `swi-chunk-base-number: &C0000`
+
+4. **Type disagreement** - `_kernel_oserror` already defined in kernel.h
+   - Fixed: Removed duplicate typedef, used standard RISC OS register interface
+
+5. **Function signature mismatch** - SWI handlers need `_kernel_swi_regs *r` not `int *r`
+   - Fixed: Updated all SWI handler signatures
+
+Final successful build:
+```bash
+riscos-amu
+# Output: rm32/JUnitXML,ffa
+```
+
+### 6. Git and CI Setup
+
+```bash
+riscos-project create-git
+riscos-project create-ci
+```
+
+Created:
+- `.gitignore` - RISC OS build artifacts, editor files
+- `.gitattributes` - Line ending and encoding settings
+- `.github/workflows/ci.yml` - GitHub Actions CI
+- `.gitlab-ci.yml` - GitLab CI
+- `.robuild.yaml` - RISC OS build configuration
+
+### 7. Documentation
+
+**README.md** - Comprehensive documentation including:
+- Feature list
+- Build instructions
+- Complete SWI interface reference
+- BBC BASIC usage examples
+- Sample XML output
+- Architecture description
+
+**LICENSE** - MIT License
+
+### 8. Commits
+
+1. `55259e7` - JUnitXML module: Initial implementation
+2. `da80c0d` - Add README.md with usage documentation
+3. `ad04f8d` - Add MIT LICENSE file
+
+---
+
+## Final Project Structure
+
+```
+JUnitXML/
+├── .github/workflows/ci.yml    # GitHub Actions CI
+├── .gitattributes              # Git attributes
+├── .gitignore                  # Git ignore rules
+├── .gitlab-ci.yml              # GitLab CI
+├── .robuild.yaml               # RISC OS build config
+├── LICENSE                     # MIT License
+├── Makefile,fe1                # Build makefile
+├── README.md                   # Documentation
+├── VersionNum                  # Version definitions
+├── c/
+│   ├── junit_state             # State management implementation
+│   ├── junit_xml_writer        # XML writer implementation
+│   └── module                  # RISC OS SWI handlers
+├── cmhg/
+│   └── modhead                 # CMunge module definition
+├── h/
+│   ├── JUnitXMLSWIs            # SWI constants
+│   ├── junit_state             # State manager interface
+│   ├── junit_types             # Data type definitions
+│   ├── junit_xml_writer        # XML writer interface
+│   └── modhead                 # Generated module header
+├── oz32/                       # Build intermediates
+│   ├── junit_state
+│   ├── junit_xml_writer
+│   ├── modhead
+│   └── module
+└── rm32/
+    └── JUnitXML,ffa            # Built module
+```
+
+---
+
+## Key Design Decisions
+
+1. **Modular Architecture** - Separated XML generation from state management from RISC OS interface for testability
+
+2. **Incremental Writing** - XML written as tests complete rather than buffered, reducing memory usage
+
+3. **Handle-Based API** - Multiple concurrent output files supported via handle system
+
+4. **Flexible Timestamps** - Support for RISC OS time, Unix epoch, and ISO 8601 formats
+
+5. **Memory Management** - Used malloc/free with careful cleanup on finalization
+
+6. **Error Handling** - RISC OS error blocks returned via SWI interface
+
+---
+
+## Tools Used
+
+- `riscos-project` - Project scaffolding
+- `riscos-amu` - Build system
+- `riscos-cc` - Norcroft RISC OS ARM C compiler 5.18
+- `riscos-cmunge` - CMunge 0.84 (module header generation)
+- `riscos-link` - Linker
+
+---
+
+## Session End
+
+**Total Files Created:** 17  
+**Total Lines of Code:** ~2,900  
+**Build Status:** Success  
+**Module Output:** rm32/JUnitXML,ffa
