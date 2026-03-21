@@ -1,0 +1,407 @@
+/*******************************************************************
+ * File:        junit_xml_writer.c
+ * Purpose:     Standalone JUnit XML writer implementation
+ * Author:      JUnitXML Module Team
+ * 
+ * This module provides standalone, testable functions for writing
+ * JUnit XML format output. It is independent of the RISC OS module
+ * interface and can be tested separately.
+ ******************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "junit_xml_writer.h"
+#include "junit_types.h"
+
+/*
+ * Write a single escaped character to the file
+ */
+static int write_escaped_char(FILE *fp, char c)
+{
+    switch (c) {
+        case '<':
+            return fputs("&lt;", fp);
+        case '>':
+            return fputs("&gt;", fp);
+        case '&':
+            return fputs("&amp;", fp);
+        case '"':
+            return fputs("&quot;", fp);
+        case '\'':
+            return fputs("&apos;", fp);
+        default:
+            return fputc(c, fp);
+    }
+}
+
+/*
+ * Escape XML special characters in a string
+ */
+int junit_xml_write_escaped_string(FILE *fp, const char *text)
+{
+    if (text == NULL) {
+        return 0;
+    }
+    
+    while (*text) {
+        if (write_escaped_char(fp, *text) == EOF) {
+            return -1;
+        }
+        text++;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write an attribute with escaped value
+ */
+static int write_attribute(FILE *fp, const char *name, const char *value)
+{
+    if (value == NULL) {
+        return 0;
+    }
+    
+    if (fprintf(fp, " %s=\"", name) < 0) {
+        return -1;
+    }
+    
+    if (junit_xml_write_escaped_string(fp, value) != 0) {
+        return -1;
+    }
+    
+    if (fputc('"', fp) == EOF) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write the XML declaration and root element opening tag
+ */
+int junit_xml_write_header(FILE *fp)
+{
+    if (fprintf(fp, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n") < 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, "<testsuites>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write the root element closing tag
+ */
+int junit_xml_write_footer(FILE *fp)
+{
+    if (fprintf(fp, "</testsuites>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write a test suite opening tag with attributes
+ */
+int junit_xml_write_testsuite_open(
+    FILE *fp,
+    const char *name,
+    const char *package,
+    const char *hostname,
+    const char *id,
+    const char *timestamp,
+    int tests,
+    int failures,
+    int errors,
+    int skipped,
+    double time
+)
+{
+    if (fprintf(fp, "  <testsuite") < 0) {
+        return -1;
+    }
+    
+    /* Name is required */
+    if (write_attribute(fp, "name", name) != 0) {
+        return -1;
+    }
+    
+    /* Optional attributes */
+    if (write_attribute(fp, "package", package) != 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "hostname", hostname) != 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "id", id) != 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "timestamp", timestamp) != 0) {
+        return -1;
+    }
+    
+    /* Counts */
+    if (fprintf(fp, " tests=\"%d\"", tests) < 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, " failures=\"%d\"", failures) < 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, " errors=\"%d\"", errors) < 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, " skipped=\"%d\"", skipped) < 0) {
+        return -1;
+    }
+    
+    /* Time taken */
+    if (fprintf(fp, " time=\"%.3f\"", time) < 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, ">\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write a test suite closing tag
+ */
+int junit_xml_write_testsuite_close(FILE *fp)
+{
+    if (fprintf(fp, "  </testsuite>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write a property element
+ */
+int junit_xml_write_property(FILE *fp, const char *name, const char *value)
+{
+    if (fprintf(fp, "      <property") < 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "name", name) != 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "value", value) != 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, "/>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write the properties container and all properties
+ */
+int junit_xml_write_properties(FILE *fp, const junit_property_t *properties)
+{
+    if (properties == NULL) {
+        return 0;
+    }
+    
+    if (fprintf(fp, "    <properties>\n") < 0) {
+        return -1;
+    }
+    
+    while (properties != NULL) {
+        if (junit_xml_write_property(fp, properties->name, properties->value) != 0) {
+            return -1;
+        }
+        properties = properties->next;
+    }
+    
+    if (fprintf(fp, "    </properties>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write system-out element
+ */
+int junit_xml_write_system_out(FILE *fp, const char *text)
+{
+    if (text == NULL || *text == '\0') {
+        return 0;
+    }
+    
+    if (fprintf(fp, "      <system-out>") < 0) {
+        return -1;
+    }
+    
+    if (junit_xml_write_escaped_string(fp, text) != 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, "</system-out>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Write system-err element
+ */
+int junit_xml_write_system_err(FILE *fp, const char *text)
+{
+    if (text == NULL || *text == '\0') {
+        return 0;
+    }
+    
+    if (fprintf(fp, "      <system-err>") < 0) {
+        return -1;
+    }
+    
+    if (junit_xml_write_escaped_string(fp, text) != 0) {
+        return -1;
+    }
+    
+    if (fprintf(fp, "</system-err>\n") < 0) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/*
+ * Get the status element name
+ */
+static const char *get_status_element(junit_test_status_t status)
+{
+    switch (status) {
+        case JUNIT_STATUS_FAILURE:
+            return "failure";
+        case JUNIT_STATUS_ERROR:
+            return "error";
+        case JUNIT_STATUS_SKIPPED:
+            return "skipped";
+        default:
+            return NULL;
+    }
+}
+
+/*
+ * Write a test case element with all attributes and child elements
+ */
+int junit_xml_write_testcase(
+    FILE *fp,
+    const char *classname,
+    const char *name,
+    double time,
+    const char *file,
+    int line,
+    const char *id,
+    junit_test_status_t status,
+    const char *failure_type,
+    const char *failure_msg,
+    const char *system_out,
+    const char *system_err
+)
+{
+    const char *status_element;
+    
+    if (fprintf(fp, "    <testcase") < 0) {
+        return -1;
+    }
+    
+    /* Required attributes */
+    if (write_attribute(fp, "classname", classname) != 0) {
+        return -1;
+    }
+    
+    if (write_attribute(fp, "name", name) != 0) {
+        return -1;
+    }
+    
+    /* Optional attributes */
+    if (write_attribute(fp, "file", file) != 0) {
+        return -1;
+    }
+    
+    if (line > 0) {
+        if (fprintf(fp, " line=\"%d\"", line) < 0) {
+            return -1;
+        }
+    }
+    
+    if (write_attribute(fp, "id", id) != 0) {
+        return -1;
+    }
+    
+    /* Time taken */
+    if (fprintf(fp, " time=\"%.3f\"", time) < 0) {
+        return -1;
+    }
+    
+    /* Check if we need a status element */
+    status_element = get_status_element(status);
+    
+    if (status_element != NULL) {
+        if (fprintf(fp, ">\n") < 0) {
+            return -1;
+        }
+        
+        /* Write status element with type and message attributes */
+        if (fprintf(fp, "      <%s", status_element) < 0) {
+            return -1;
+        }
+        
+        if (write_attribute(fp, "type", failure_type) != 0) {
+            return -1;
+        }
+        
+        if (write_attribute(fp, "message", failure_msg) != 0) {
+            return -1;
+        }
+        
+        if (fprintf(fp, "/>\n") < 0) {
+            return -1;
+        }
+        
+        /* Write system-out and system-err if present */
+        if (junit_xml_write_system_out(fp, system_out) != 0) {
+            return -1;
+        }
+        
+        if (junit_xml_write_system_err(fp, system_err) != 0) {
+            return -1;
+        }
+        
+        if (fprintf(fp, "    </testcase>\n") < 0) {
+            return -1;
+        }
+    } else {
+        /* No status element - self-closing tag */
+        if (fprintf(fp, "/>\n") < 0) {
+            return -1;
+        }
+    }
+    
+    return 0;
+}

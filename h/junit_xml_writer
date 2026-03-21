@@ -1,0 +1,143 @@
+/*******************************************************************
+ * File:        junit_xml_writer
+ * Purpose:     Standalone JUnit XML writer interface
+ * Author:      JUnitXML Module Team
+ * 
+ * This module provides standalone, testable functions for writing
+ * JUnit XML format output. It is independent of the RISC OS module
+ * interface and can be tested separately.
+ ******************************************************************/
+
+#ifndef _JUNIT_XML_WRITER_H
+#define _JUNIT_XML_WRITER_H
+
+#include <stdio.h>
+#include "junit_types.h"
+
+/*
+ * Write the XML declaration and root element opening tag
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_header(FILE *fp);
+
+/*
+ * Write the root element closing tag
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_footer(FILE *fp);
+
+/*
+ * Write a test suite opening tag with attributes
+ * Parameters:
+ *   fp          - output file pointer
+ *   name        - suite name
+ *   package     - package name (can be NULL)
+ *   hostname    - hostname (can be NULL)
+ *   id          - suite ID (can be NULL)
+ *   timestamp   - ISO 8601 timestamp string
+ *   tests       - number of tests
+ *   failures    - number of failures
+ *   errors      - number of errors
+ *   skipped     - number of skipped tests
+ *   time        - time taken in seconds
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_testsuite_open(
+    FILE *fp,
+    const char *name,
+    const char *package,
+    const char *hostname,
+    const char *id,
+    const char *timestamp,
+    int tests,
+    int failures,
+    int errors,
+    int skipped,
+    double time
+);
+
+/*
+ * Write a test suite closing tag
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_testsuite_close(FILE *fp);
+
+/*
+ * Write a property element
+ * Parameters:
+ *   fp    - output file pointer
+ *   name  - property name
+ *   value - property value
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_property(FILE *fp, const char *name, const char *value);
+
+/*
+ * Write the properties container and all properties
+ * Parameters:
+ *   fp         - output file pointer
+ *   properties - linked list of properties
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_properties(FILE *fp, const junit_property_t *properties);
+
+/*
+ * Write a test case element with all attributes and child elements
+ * Parameters:
+ *   fp            - output file pointer
+ *   classname     - class name
+ *   name          - test name
+ *   time          - time taken in seconds
+ *   file          - source file (can be NULL)
+ *   line          - line number (0 if not set)
+ *   id            - test ID (can be NULL)
+ *   status        - test status
+ *   failure_type  - failure type (can be NULL)
+ *   failure_msg   - failure message (can be NULL)
+ *   system_out    - standard output (can be NULL)
+ *   system_err    - standard error (can be NULL)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_testcase(
+    FILE *fp,
+    const char *classname,
+    const char *name,
+    double time,
+    const char *file,
+    int line,
+    const char *id,
+    junit_test_status_t status,
+    const char *failure_type,
+    const char *failure_msg,
+    const char *system_out,
+    const char *system_err
+);
+
+/*
+ * Write system-out element
+ * Parameters:
+ *   fp   - output file pointer
+ *   text - text content (can be NULL)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_system_out(FILE *fp, const char *text);
+
+/*
+ * Write system-err element
+ * Parameters:
+ *   fp   - output file pointer
+ *   text - text content (can be NULL)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_system_err(FILE *fp, const char *text);
+
+/*
+ * Escape XML special characters in a string
+ * Parameters:
+ *   fp    - output file pointer
+ *   text  - input text to escape
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_xml_write_escaped_string(FILE *fp, const char *text);
+
+#endif /* _JUNIT_XML_WRITER_H */

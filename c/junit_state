@@ -1,0 +1,714 @@
+/*******************************************************************
+ * File:        junit_state.c
+ * Purpose:     JUnit state management implementation
+ * Author:      JUnitXML Module Team
+ * 
+ * This module manages the state for JUnit XML generation including
+ * handles, test suites, and test cases. It is designed to be
+ * testable independently of the RISC OS module interface.
+ ******************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include "junit_state.h"
+#include "junit_xml_writer.h"
+
+/* Global state instance */
+junit_global_state_t junit_global;
+
+/*
+ * Helper: duplicate a string using malloc
+ */
+char *junit_strdup(const char *s)
+{
+    char *result;
+    size_t len;
+    
+    if (s == NULL) {
+        return NULL;
+    }
+    
+    len = strlen(s) + 1;
+    result = (char *)malloc(len);
+    if (result != NULL) {
+        memcpy(result, s, len);
+    }
+    
+    return result;
+}
+
+/*
+ * Helper: free a string safely
+ */
+void junit_strfree(char **s)
+{
+    if (s != NULL && *s != NULL) {
+        free(*s);
+        *s = NULL;
+    }
+}
+
+/*
+ * Helper: get current timestamp as ISO 8601 string
+ * Returns: malloc'd string, caller must free
+ */
+char *junit_get_current_timestamp(void)
+{
+    time_t now;
+    struct tm *tm_info;
+    char buffer[32];
+    
+    time(&now);
+    tm_info = gmtime(&now);
+    
+    if (tm_info == NULL) {
+        return NULL;
+    }
+    
+    /* ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ */
+    strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", tm_info);
+    
+    return junit_strdup(buffer);
+}
+
+/*
+ * Free a property list
+ */
+static void free_properties(junit_property_t *props)
+{
+    junit_property_t *next;
+    
+    while (props != NULL) {
+        next = props->next;
+        junit_strfree(&props->name);
+        junit_strfree(&props->value);
+        free(props);
+        props = next;
+    }
+}
+
+/*
+ * Free a test case
+ */
+static void free_testcase(junit_testcase_t *tc)
+{
+    if (tc == NULL) {
+        return;
+    }
+    
+    junit_strfree(&tc->id);
+    junit_strfree(&tc->classname);
+    junit_strfree(&tc->name);
+    junit_strfree(&tc->failure_type);
+    junit_strfree(&tc->failure_message);
+    junit_strfree(&tc->system_out);
+    junit_strfree(&tc->system_err);
+    junit_strfree(&tc->file);
+    free(tc);
+}
+
+/*
+ * Free a test suite
+ */
+static void free_testsuite(junit_testsuite_t *ts)
+{
+    junit_testcase_t *tc, *next_tc;
+    
+    if (ts == NULL) {
+        return;
+    }
+    
+    junit_strfree(&ts->id);
+    junit_strfree(&ts->name);
+    junit_strfree(&ts->package);
+    junit_strfree(&ts->hostname);
+    junit_strfree(&ts->timestamp);
+    
+    /* Free properties */
+    free_properties(ts->properties);
+    
+    /* Free test cases */
+    tc = ts->testcases;
+    while (tc != NULL) {
+        next_tc = tc->next;
+        free_testcase(tc);
+        tc = next_tc;
+    }
+    
+    free(ts);
+}
+
+/*
+ * Free a handle
+ */
+static void free_handle(junit_handle_t *h)
+{
+    junit_testsuite_t *ts, *next_ts;
+    
+    if (h == NULL) {
+        return;
+    }
+    
+    junit_strfree(&h->filename);
+    
+    if (h->fp != NULL) {
+        fclose(h->fp);
+        h->fp = NULL;
+    }
+    
+    /* Free all suites */
+    ts = h->suites;
+    while (ts != NULL) {
+        next_ts = ts->next;
+        free_testsuite(ts);
+        ts = next_ts;
+    }
+    
+    free(h);
+}
+
+/*
+ * Find a handle by ID
+ */
+static junit_handle_t *find_handle(int handle_id)
+{
+    junit_handle_t *h;
+    
+    for (h = junit_global.handles; h != NULL; h = h->next) {
+        if (h->handle_id == handle_id) {
+            return h;
+        }
+    }
+    
+    return NULL;
+}
+
+/*
+ * Create a new test suite structure
+ */
+static junit_testsuite_t *create_testsuite(
+    const char *id,
+    const char *name,
+    const char *package,
+    const char *timestamp
+)
+{
+    junit_testsuite_t *ts;
+    
+    ts = (junit_testsuite_t *)malloc(sizeof(junit_testsuite_t));
+    if (ts == NULL) {
+        return NULL;
+    }
+    
+    memset(ts, 0, sizeof(junit_testsuite_t));
+    
+    /* Handle ID - check if it's a small integer */
+    if (id != NULL) {
+        ts->id = junit_strdup(id);
+        if (ts->id == NULL) {
+            free_testsuite(ts);
+            return NULL;
+        }
+    }
+    /* else numeric_id will be set later */
+    
+    ts->name = junit_strdup(name);
+    if (ts->name == NULL) {
+        free_testsuite(ts);
+        return NULL;
+    }
+    
+    if (package != NULL) {
+        ts->package = junit_strdup(package);
+        if (ts->package == NULL) {
+            free_testsuite(ts);
+            return NULL;
+        }
+    }
+    
+    if (timestamp != NULL) {
+        ts->timestamp = junit_strdup(timestamp);
+        if (ts->timestamp == NULL) {
+            free_testsuite(ts);
+            return NULL;
+        }
+    } else {
+        ts->timestamp = junit_get_current_timestamp();
+        if (ts->timestamp == NULL) {
+            free_testsuite(ts);
+            return NULL;
+        }
+    }
+    
+    ts->is_open = 1;
+    
+    return ts;
+}
+
+/*
+ * Initialise the global state
+ */
+int junit_state_init(void)
+{
+    memset(&junit_global, 0, sizeof(junit_global));
+    junit_global.next_handle_id = 1;
+    
+    return 0;
+}
+
+/*
+ * Finalise the global state, freeing all resources
+ */
+int junit_state_final(void)
+{
+    junit_handle_t *h, *next_h;
+    
+    for (h = junit_global.handles; h != NULL; h = next_h) {
+        next_h = h->next;
+        free_handle(h);
+    }
+    
+    junit_global.handles = NULL;
+    junit_global.next_handle_id = 0;
+    
+    return 0;
+}
+
+/*
+ * Create a new JUnit XML handle
+ */
+int junit_create(const char *filename, int flags)
+{
+    junit_handle_t *h;
+    
+    h = (junit_handle_t *)malloc(sizeof(junit_handle_t));
+    if (h == NULL) {
+        return -1;
+    }
+    
+    memset(h, 0, sizeof(junit_handle_t));
+    
+    h->handle_id = junit_global.next_handle_id++;
+    
+    if (flags & 1) {
+        /* Filename supplied */
+        h->filename = junit_strdup(filename);
+        if (h->filename == NULL) {
+            free(h);
+            return -1;
+        }
+        
+        /* Open file for writing */
+        h->fp = fopen(filename, "w");
+        if (h->fp == NULL) {
+            junit_strfree(&h->filename);
+            free(h);
+            return -1;
+        }
+        
+        /* Write header */
+        if (junit_xml_write_header(h->fp) != 0) {
+            fclose(h->fp);
+            junit_strfree(&h->filename);
+            free(h);
+            return -1;
+        }
+        
+        fflush(h->fp);
+    }
+    
+    /* Add to handle list */
+    h->next = junit_global.handles;
+    junit_global.handles = h;
+    
+    return h->handle_id;
+}
+
+/*
+ * Close a JUnit XML handle and write final output
+ */
+int junit_close(int handle_id, const char *filename, int flags)
+{
+    junit_handle_t *h, **prev_ptr;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    /* Close any open suite */
+    if (h->current_suite != NULL) {
+        if (junit_suite_close(handle_id, 0) != 0) {
+            return -1;
+        }
+    }
+    
+    /* If new filename supplied, close old file and open new one */
+    if ((flags & 1) && filename != NULL) {
+        if (h->fp != NULL) {
+            fclose(h->fp);
+            h->fp = NULL;
+        }
+        
+        junit_strfree(&h->filename);
+        h->filename = junit_strdup(filename);
+        if (h->filename == NULL) {
+            return -1;
+        }
+        
+        h->fp = fopen(filename, "w");
+        if (h->fp == NULL) {
+            return -1;
+        }
+        
+        /* Rewrite header */
+        if (junit_xml_write_header(h->fp) != 0) {
+            fclose(h->fp);
+            h->fp = NULL;
+            return -1;
+        }
+    }
+    
+    /* Write footer if we have a file */
+    if (h->fp != NULL) {
+        if (junit_xml_write_footer(h->fp) != 0) {
+            return -1;
+        }
+        
+        fclose(h->fp);
+        h->fp = NULL;
+    }
+    
+    /* Remove from handle list */
+    prev_ptr = &junit_global.handles;
+    while (*prev_ptr != NULL) {
+        if (*prev_ptr == h) {
+            *prev_ptr = h->next;
+            break;
+        }
+        prev_ptr = &(*prev_ptr)->next;
+    }
+    
+    free_handle(h);
+    
+    return 0;
+}
+
+/*
+ * Create a new test suite
+ */
+int junit_suite_create(
+    int handle_id,
+    const char *id,
+    const char *name,
+    const char *package,
+    const char *timestamp
+)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    /* Close any existing open suite */
+    if (h->current_suite != NULL && h->current_suite->is_open) {
+        if (junit_suite_close(handle_id, 0) != 0) {
+            return -1;
+        }
+    }
+    
+    ts = create_testsuite(id, name, package, timestamp);
+    if (ts == NULL) {
+        return -1;
+    }
+    
+    /* Add to suite list */
+    ts->next = h->suites;
+    h->suites = ts;
+    h->current_suite = ts;
+    
+    return 0;
+}
+
+/*
+ * Close a test suite
+ */
+int junit_suite_close(int handle_id, int duration_cs)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    ts = h->current_suite;
+    if (ts == NULL || !ts->is_open) {
+        return -1;
+    }
+    
+    /* Close any open test case */
+    if (ts->current_case != NULL) {
+        if (junit_case_close(handle_id, 0) != 0) {
+            return -1;
+        }
+    }
+    
+    /* Convert duration from centiseconds to seconds */
+    if (duration_cs > 0) {
+        ts->time = (double)duration_cs / 100.0;
+    }
+    
+    /* Write the suite to file */
+    if (h->fp != NULL) {
+        if (junit_xml_write_testsuite_open(
+                h->fp,
+                ts->name,
+                ts->package,
+                ts->hostname,
+                ts->id,
+                ts->timestamp,
+                ts->tests_count,
+                ts->failures_count,
+                ts->errors_count,
+                ts->skipped_count,
+                ts->time
+            ) != 0) {
+            return -1;
+        }
+        
+        /* Write properties */
+        if (junit_xml_write_properties(h->fp, ts->properties) != 0) {
+            return -1;
+        }
+        
+        /* Write all test cases */
+        /* Note: test cases are written as they're closed, not here */
+        /* This is handled in junit_case_close */
+        
+        if (junit_xml_write_testsuite_close(h->fp) != 0) {
+            return -1;
+        }
+        
+        fflush(h->fp);
+    }
+    
+    ts->is_open = 0;
+    h->current_suite = NULL;
+    
+    return 0;
+}
+
+/*
+ * Set a property on the current test suite
+ */
+int junit_suite_set_property(int handle_id, const char *name, const char *value)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    junit_property_t *prop, **prev_ptr;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    ts = h->current_suite;
+    if (ts == NULL) {
+        return -1;
+    }
+    
+    prop = (junit_property_t *)malloc(sizeof(junit_property_t));
+    if (prop == NULL) {
+        return -1;
+    }
+    
+    prop->name = junit_strdup(name);
+    prop->value = junit_strdup(value);
+    prop->next = NULL;
+    
+    if (prop->name == NULL || prop->value == NULL) {
+        junit_strfree(&prop->name);
+        junit_strfree(&prop->value);
+        free(prop);
+        return -1;
+    }
+    
+    /* Add to property list */
+    prev_ptr = &ts->properties;
+    while (*prev_ptr != NULL) {
+        prev_ptr = &(*prev_ptr)->next;
+    }
+    *prev_ptr = prop;
+    
+    return 0;
+}
+
+/*
+ * Create a new test case
+ */
+int junit_case_create(
+    int handle_id,
+    const char *id,
+    const char *classname,
+    const char *name,
+    junit_test_status_t status,
+    const char *failure_type,
+    const char *failure_msg
+)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    junit_testcase_t *tc;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    ts = h->current_suite;
+    if (ts == NULL || !ts->is_open) {
+        return -1;
+    }
+    
+    /* Close any existing open test case */
+    if (ts->current_case != NULL) {
+        if (junit_case_close(handle_id, 0) != 0) {
+            return -1;
+        }
+    }
+    
+    tc = (junit_testcase_t *)malloc(sizeof(junit_testcase_t));
+    if (tc == NULL) {
+        return -1;
+    }
+    
+    memset(tc, 0, sizeof(junit_testcase_t));
+    
+    if (id != NULL) {
+        tc->id = junit_strdup(id);
+        if (tc->id == NULL) {
+            free(tc);
+            return -1;
+        }
+    }
+    
+    tc->classname = junit_strdup(classname);
+    if (tc->classname == NULL) {
+        free_testcase(tc);
+        return -1;
+    }
+    
+    tc->name = junit_strdup(name);
+    if (tc->name == NULL) {
+        free_testcase(tc);
+        return -1;
+    }
+    
+    tc->status = status;
+    
+    if (failure_type != NULL) {
+        tc->failure_type = junit_strdup(failure_type);
+        if (tc->failure_type == NULL) {
+            free_testcase(tc);
+            return -1;
+        }
+    }
+    
+    if (failure_msg != NULL) {
+        tc->failure_message = junit_strdup(failure_msg);
+        if (tc->failure_message == NULL) {
+            free_testcase(tc);
+            return -1;
+        }
+    }
+    
+    ts->current_case = tc;
+    
+    return 0;
+}
+
+/*
+ * Close a test case (write it out)
+ */
+int junit_case_close(int handle_id, int duration_cs)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    junit_testcase_t *tc, **prev_ptr;
+    
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+    
+    ts = h->current_suite;
+    if (ts == NULL) {
+        return -1;
+    }
+    
+    tc = ts->current_case;
+    if (tc == NULL) {
+        return -1;
+    }
+    
+    /* Convert duration from centiseconds to seconds */
+    if (duration_cs > 0) {
+        tc->time = (double)duration_cs / 100.0;
+    }
+    
+    /* Update suite counts */
+    ts->tests_count++;
+    switch (tc->status) {
+        case JUNIT_STATUS_FAILURE:
+            ts->failures_count++;
+            break;
+        case JUNIT_STATUS_ERROR:
+            ts->errors_count++;
+            break;
+        case JUNIT_STATUS_SKIPPED:
+            ts->skipped_count++;
+            break;
+        default:
+            break;
+    }
+    
+    /* Write the test case to file */
+    if (h->fp != NULL) {
+        if (junit_xml_write_testcase(
+                h->fp,
+                tc->classname,
+                tc->name,
+                tc->time,
+                tc->file,
+                tc->line,
+                tc->id,
+                tc->status,
+                tc->failure_type,
+                tc->failure_message,
+                tc->system_out,
+                tc->system_err
+            ) != 0) {
+            return -1;
+        }
+        
+        fflush(h->fp);
+    }
+    
+    /* Add to test case list */
+    prev_ptr = &ts->testcases;
+    while (*prev_ptr != NULL) {
+        prev_ptr = &(*prev_ptr)->next;
+    }
+    *prev_ptr = tc;
+    
+    ts->current_case = NULL;
+    
+    return 0;
+}

@@ -1,0 +1,380 @@
+/*******************************************************************
+ * File:        module
+ * Purpose:     JUnitXML module interface
+ * Author:      JUnitXML Module Team
+ ******************************************************************/
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+#include "kernel.h"
+#include "modhead.h"
+#include "junit_types.h"
+#include "junit_state.h"
+#include "JUnitXMLSWIs.h"
+
+#define DEBUG
+
+#ifdef DEBUG
+#define dprintf if (1) printf
+#else
+#define dprintf if (0) printf
+#endif
+
+/*
+ * Convert a RISC OS time quintuple to ISO 8601 string
+ * RISC OS time: centiseconds since 1900-01-01 00:00:00 UTC
+ * Returns: malloc'd string, caller must free
+ */
+static char *riscos_time_to_iso8601(const int *riscos_time)
+{
+    /* RISC OS time quintuple:
+     * [0] = hours (0-23)
+     * [1] = minutes (0-59)
+     * [2] = seconds (0-59)
+     * [3] = centiseconds (0-99)
+     * [4] = days since 1900-01-01
+     */
+    int hours, minutes, seconds, cs, days;
+    long total_seconds;
+    time_t epoch_time;
+    struct tm *tm_info;
+    char buffer[32];
+    
+    hours = riscos_time[0];
+    minutes = riscos_time[1];
+    seconds = riscos_time[2];
+    cs = riscos_time[3];
+    days = riscos_time[4];
+    
+    /* Convert days since 1900 to seconds */
+    total_seconds = (days * 24 * 60 * 60) + 
+                    (hours * 60 * 60) + 
+                    (minutes * 60) + 
+                    seconds;
+    
+    /* RISC OS epoch is 1900-01-01, Unix epoch is 1970-01-01 */
+    /* Days between 1900 and 1970 = 25567 days */
+    epoch_time = total_seconds - (25567 * 24 * 60 * 60);
+    
+    tm_info = gmtime(&epoch_time);
+    if (tm_info == NULL) {
+        return NULL;
+    }
+    
+    /* ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ */
+    strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", tm_info);
+    
+    return junit_strdup(buffer);
+}
+
+/*
+ * Convert Unix epoch time to ISO 8601 string
+ * Returns: malloc'd string, caller must free
+ */
+static char *unix_time_to_iso8601(time_t unix_time)
+{
+    struct tm *tm_info;
+    char buffer[32];
+    
+    tm_info = gmtime(&unix_time);
+    if (tm_info == NULL) {
+        return NULL;
+    }
+    
+    strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", tm_info);
+    
+    return junit_strdup(buffer);
+}
+
+/*
+ * Create error block
+ */
+static _kernel_oserror *make_error(const char *message)
+{
+    static _kernel_oserror err;
+    
+    err.errnum = 0x84000;  /* Base error number for JUnitXML */
+    strncpy(err.errmess, message, sizeof(err.errmess) - 1);
+    err.errmess[sizeof(err.errmess) - 1] = '\0';
+    
+    return &err;
+}
+
+/*
+ * SWI: JUnitXML_Create
+ * Create a new JUnit XML file handle
+ */
+_kernel_oserror *Mod_SWICreate(int number, _kernel_swi_regs *r, void *pw)
+{
+    int flags = r->r[0];
+    const char *filename = (flags & JUnitXML_Create_FilenameGiven) ? (const char *)r->r[1] : NULL;
+    int handle;
+    
+    dprintf("JUnitXML_Create: flags=%d, filename=%s\n", flags, filename ? filename : "(none)");
+    
+    handle = junit_create(filename, flags);
+    
+    if (handle < 0) {
+        return make_error("Failed to create JUnitXML handle");
+    }
+    
+    r->r[0] = handle;
+    
+    return NULL;
+}
+
+/*
+ * SWI: JUnitXML_TestSuite
+ * Create, close, update, or set property on a test suite
+ */
+_kernel_oserror *Mod_SWITestSuite(int number, _kernel_swi_regs *r, void *pw)
+{
+    int flags = r->r[0];
+    int handle = r->r[1];
+    int op = flags & JUnitXML_TestSuite_OpMask;
+    int ts_format = (flags & JUnitXML_TestSuite_TSMask) >> JUnitXML_TestSuite_TSShift;
+    int has_duration = flags & JUnitXML_TestSuite_DurationPresent;
+    int has_package = flags & JUnitXML_TestSuite_PackageSupplied;
+    _kernel_oserror *err = NULL;
+    
+    dprintf("JUnitXML_TestSuite: flags=%d, handle=%d, op=%d\n", flags, handle, op);
+    
+    switch (op) {
+        case JUnitXML_TestSuite_OpCreate:
+        {
+            const char *id = (const char *)r->r[2];
+            const char *name = (const char *)r->r[3];
+            const char *package = has_package ? (const char *)r->r[4] : NULL;
+            const char *timestamp = NULL;
+            char *ts_str = NULL;
+            
+            /* Handle timestamp based on format */
+            switch (ts_format) {
+                case JUnitXML_TestSuite_TSCurrent:
+                    /* Use current time - pass NULL to state manager */
+                    timestamp = NULL;
+                    break;
+                    
+                case JUnitXML_TestSuite_TSRiscOS:
+                {
+                    int *riscos_time = (int *)r->r[5];
+                    ts_str = riscos_time_to_iso8601(riscos_time);
+                    timestamp = ts_str;
+                    break;
+                }
+                
+                case JUnitXML_TestSuite_TSUnix:
+                {
+                    time_t unix_time = (time_t)r->r[5];
+                    ts_str = unix_time_to_iso8601(unix_time);
+                    timestamp = ts_str;
+                    break;
+                }
+                
+                case JUnitXML_TestSuite_TSISO8601:
+                    timestamp = (const char *)r->r[5];
+                    break;
+            }
+            
+            if (junit_suite_create(handle, id, name, package, timestamp) != 0) {
+                err = make_error("Failed to create test suite");
+            }
+            
+            if (ts_str != NULL && ts_str != timestamp) {
+                free(ts_str);
+            }
+            
+            break;
+        }
+        
+        case JUnitXML_TestSuite_OpClose:
+        {
+            int duration = has_duration ? r->r[2] : 0;
+            
+            if (junit_suite_close(handle, duration) != 0) {
+                err = make_error("Failed to close test suite");
+            }
+            
+            break;
+        }
+        
+        case JUnitXML_TestSuite_OpUpdate:
+            /* Update operation - not fully specified in design */
+            err = make_error("TestSuite Update not implemented");
+            break;
+        
+        case JUnitXML_TestSuite_OpProperty:
+        {
+            const char *prop_name = (const char *)r->r[2];
+            const char *prop_value = (const char *)r->r[3];
+            
+            if (junit_suite_set_property(handle, prop_name, prop_value) != 0) {
+                err = make_error("Failed to set property");
+            }
+            
+            break;
+        }
+        
+        default:
+            err = make_error("Unknown TestSuite operation");
+            break;
+    }
+    
+    return err;
+}
+
+/*
+ * SWI: JUnitXML_TestCase
+ * Create, close, or update a test case
+ */
+_kernel_oserror *Mod_SWITestCase(int number, _kernel_swi_regs *r, void *pw)
+{
+    int flags = r->r[0];
+    int handle = r->r[1];
+    int op = flags & JUnitXML_TestCase_OpMask;
+    int status = (flags & JUnitXML_TestCase_StatusMask) >> JUnitXML_TestCase_StatusShift;
+    int is_error_block = flags & JUnitXML_TestCase_ErrorBlock;
+    _kernel_oserror *err = NULL;
+    
+    dprintf("JUnitXML_TestCase: flags=%d, handle=%d, op=%d, status=%d\n", flags, handle, op, status);
+    
+    switch (op) {
+        case JUnitXML_TestCase_OpCreate:
+        {
+            const char *id = (const char *)r->r[2];
+            const char *classname = (const char *)r->r[3];
+            const char *name = (const char *)r->r[4];
+            const char *failure_type = (const char *)r->r[5];
+            const char *failure_msg = (const char *)r->r[6];
+            junit_test_status_t test_status;
+            
+            /* Convert status code */
+            switch (status) {
+                case 0: test_status = JUNIT_STATUS_NONE; break;
+                case 1: test_status = JUNIT_STATUS_SUCCESS; break;
+                case 2: test_status = JUNIT_STATUS_FAILURE; break;
+                case 3: test_status = JUNIT_STATUS_ERROR; break;
+                case 4: test_status = JUNIT_STATUS_SKIPPED; break;
+                default: test_status = JUNIT_STATUS_NONE; break;
+            }
+            
+            /* Handle error block case */
+            if (is_error_block && failure_type != NULL) {
+                /* failure_type points to a RISC OS error block */
+                /* For now, use a generic error type */
+                failure_type = "RISC_OSError";
+            }
+            
+            if (junit_case_create(handle, id, classname, name, test_status, 
+                                  failure_type, failure_msg) != 0) {
+                err = make_error("Failed to create test case");
+            }
+            
+            break;
+        }
+        
+        case JUnitXML_TestCase_OpClose:
+        {
+            int duration = r->r[2];
+            
+            if (junit_case_close(handle, duration) != 0) {
+                err = make_error("Failed to close test case");
+            }
+            
+            break;
+        }
+        
+        case JUnitXML_TestCase_OpUpdate:
+            /* Update operation - not fully specified in design */
+            err = make_error("TestCase Update not implemented");
+            break;
+        
+        default:
+            err = make_error("Unknown TestCase operation");
+            break;
+    }
+    
+    return err;
+}
+
+/*
+ * SWI: JUnitXML_Close
+ * Close a JUnit XML handle
+ */
+_kernel_oserror *Mod_SWIClose(int number, _kernel_swi_regs *r, void *pw)
+{
+    int flags = r->r[0];
+    const char *filename = (flags & JUnitXML_Close_FilenameGiven) ? (const char *)r->r[1] : NULL;
+    _kernel_oserror *err = NULL;
+    
+    dprintf("JUnitXML_Close: flags=%d, filename=%s\n", flags, filename ? filename : "(none)");
+    
+    /* Note: The design doesn't specify which handle to close.
+     * We'll need to track the "current" handle or require it as a parameter.
+     * For now, we'll close the most recently created handle.
+     */
+    
+    /* Get the first (most recent) handle */
+    if (junit_global.handles != NULL) {
+        int handle = junit_global.handles->handle_id;
+        
+        if (junit_close(handle, filename, flags) != 0) {
+            err = make_error("Failed to close JUnitXML handle");
+        }
+    } else {
+        err = make_error("No JUnitXML handle to close");
+    }
+    
+    return err;
+}
+
+
+/***************************************************************************
+ * Function:     Mod_Init
+ * Description:  Initialise the module, setting up vectors, callbacks and
+ *               any other parts of the system necessary for the module to
+ *               function.
+ * Parameters:   tail        = pointer to command line (control terminated)
+ *               podule_base = address of podule module was started from, or
+ *                             NULL if none
+ *               pw          = private word for module
+ * On exit:      Return NULL for successful initialisation, or a pointer to
+ *               an error block if the module could not start properly.
+ **************************************************************************/
+_kernel_oserror *Mod_Init(const char *tail, int podule_base, void *pw)
+{
+    dprintf("Module JUnitXML initialised\n");
+    
+    /* Initialise the state manager */
+    if (junit_state_init() != 0) {
+        return make_error("Failed to initialise JUnitXML state");
+    }
+    
+    return NULL;
+}
+
+
+/***************************************************************************
+ * Function:     Mod_Final
+ * Description:  Finalise the module, shutting down any systems necessary,
+ *               freeing vectors and releasing workspace
+ * Parameters:   fatal       = fatality indicator; 1 if fatal, 0 if
+ *                             reinitialising
+ *               podule_base = address of podule module was started from, or
+ *                             NULL if none
+ *               pw          = private word for module
+ * On exit:      Return 0 for successful finalisation, or a pointer to an
+ *               error block if module was not shutdown properly.
+ **************************************************************************/
+_kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
+{
+    dprintf("Module JUnitXML dying\n");
+    
+    /* Finalise the state manager */
+    junit_state_final();
+    
+    return NULL;
+}

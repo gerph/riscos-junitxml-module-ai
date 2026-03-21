@@ -1,0 +1,123 @@
+/*******************************************************************
+ * File:        junit_types
+ * Purpose:     JUnit XML data type definitions
+ * Author:      JUnitXML Module Team
+ ******************************************************************/
+
+#ifndef _JUNIT_TYPES_H
+#define _JUNIT_TYPES_H
+
+#include <stdint.h>
+#include <stdio.h>
+
+/*
+ * Test case status codes
+ */
+typedef enum junit_test_status {
+    JUNIT_STATUS_NONE     = 0,
+    JUNIT_STATUS_SUCCESS  = 1,
+    JUNIT_STATUS_FAILURE  = 2,
+    JUNIT_STATUS_ERROR    = 3,
+    JUNIT_STATUS_SKIPPED  = 4
+} junit_test_status_t;
+
+/*
+ * Test suite operation codes
+ */
+typedef enum junit_suite_op {
+    JUNIT_SUITE_CREATE   = 0,
+    JUNIT_SUITE_CLOSE    = 1,
+    JUNIT_SUITE_UPDATE   = 2,
+    JUNIT_SUITE_PROPERTY = 3
+} junit_suite_op_t;
+
+/*
+ * Test case operation codes
+ */
+typedef enum junit_case_op {
+    JUNIT_CASE_CREATE = 0,
+    JUNIT_CASE_CLOSE  = 1,
+    JUNIT_CASE_UPDATE = 2
+} junit_case_op_t;
+
+/*
+ * Timestamp format codes
+ */
+typedef enum junit_timestamp_format {
+    JUNIT_TS_CURRENT  = 0,  /* Use current time on creation */
+    JUNIT_TS_RISCOS   = 1,  /* Pointer to RISC OS time quintuple */
+    JUNIT_TS_UNIX     = 2,  /* Unix epoch time */
+    JUNIT_TS_ISO8601  = 3   /* Pointer to ISO 8601 string */
+} junit_timestamp_format_t;
+
+/*
+ * Property structure for test suites
+ */
+typedef struct junit_property {
+    char *name;
+    char *value;
+    struct junit_property *next;
+} junit_property_t;
+
+/*
+ * Test case structure
+ */
+typedef struct junit_testcase {
+    char *id;                    /* Test case ID (or NULL for numeric) */
+    uint16_t numeric_id;         /* Numeric ID if id is NULL and < 65536 */
+    char *classname;             /* Class name */
+    char *name;                  /* Test name */
+    junit_test_status_t status;  /* Test status */
+    char *failure_type;          /* Failure type (for failure/error) */
+    char *failure_message;       /* Failure message (for failure/error) */
+    char *system_out;            /* Standard output */
+    char *system_err;            /* Standard error */
+    double time;                 /* Time taken in seconds */
+    char *file;                  /* Source file */
+    int line;                    /* Line number */
+    struct junit_testcase *next; /* Next test case in suite */
+} junit_testcase_t;
+
+/*
+ * Test suite structure
+ */
+typedef struct junit_testsuite {
+    char *id;                    /* Suite ID (or NULL for numeric) */
+    uint16_t numeric_id;         /* Numeric ID if id is NULL and < 65536 */
+    char *name;                  /* Suite name */
+    char *package;               /* Package name */
+    char *hostname;              /* Hostname */
+    double time;                 /* Time taken in seconds */
+    char *timestamp;             /* ISO 8601 timestamp string */
+    int tests_count;             /* Number of tests */
+    int failures_count;          /* Number of failures */
+    int errors_count;            /* Number of errors */
+    int skipped_count;           /* Number of skipped tests */
+    junit_property_t *properties;/* List of properties */
+    junit_testcase_t *testcases; /* List of test cases */
+    junit_testcase_t *current_case; /* Current test case being built */
+    struct junit_testsuite *next;/* Next suite */
+    int is_open;                 /* Suite is open for adding tests */
+} junit_testsuite_t;
+
+/*
+ * Main JUnit XML handle structure
+ */
+typedef struct junit_handle {
+    FILE *fp;                    /* Output file pointer */
+    char *filename;              /* Output filename */
+    junit_testsuite_t *suites;   /* List of test suites */
+    junit_testsuite_t *current_suite; /* Current suite being built */
+    int handle_id;               /* Unique handle identifier */
+    struct junit_handle *next;   /* Next handle in list */
+} junit_handle_t;
+
+/*
+ * Global state for JUnit XML module
+ */
+typedef struct junit_global_state {
+    junit_handle_t *handles;     /* List of all handles */
+    int next_handle_id;          /* Next unique handle ID */
+} junit_global_state_t;
+
+#endif /* _JUNIT_TYPES_H */

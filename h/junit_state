@@ -1,0 +1,140 @@
+/*******************************************************************
+ * File:        junit_state
+ * Purpose:     JUnit state management interface
+ * Author:      JUnitXML Module Team
+ * 
+ * This module manages the state for JUnit XML generation including
+ * handles, test suites, and test cases. It is designed to be
+ * testable independently of the RISC OS module interface.
+ ******************************************************************/
+
+#ifndef _JUNIT_STATE_H
+#define _JUNIT_STATE_H
+
+#include <stdio.h>
+#include "junit_types.h"
+
+/*
+ * Global state instance (singleton for the module)
+ */
+extern junit_global_state_t junit_global;
+
+/*
+ * Initialise the global state
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_state_init(void);
+
+/*
+ * Finalise the global state, freeing all resources
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_state_final(void);
+
+/*
+ * Create a new JUnit XML handle
+ * Parameters:
+ *   filename - output filename (can be NULL)
+ *   flags    - creation flags
+ *              bit 0: filename supplied
+ * Returns:
+ *   R0: handle ID (positive) or error code (negative)
+ */
+int junit_create(const char *filename, int flags);
+
+/*
+ * Close a JUnit XML handle and write final output
+ * Parameters:
+ *   handle_id - handle to close
+ *   filename  - optional override filename (can be NULL)
+ *   flags     - close flags
+ *               bit 0: filename supplied
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_close(int handle_id, const char *filename, int flags);
+
+/*
+ * Create a new test suite
+ * Parameters:
+ *   handle_id  - handle ID
+ *   id         - suite ID string (or NULL for numeric/auto)
+ *   name       - suite name
+ *   package    - package name (can be NULL)
+ *   timestamp  - timestamp string (can be NULL for current time)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_suite_create(
+    int handle_id,
+    const char *id,
+    const char *name,
+    const char *package,
+    const char *timestamp
+);
+
+/*
+ * Close a test suite
+ * Parameters:
+ *   handle_id - handle ID
+ *   duration  - duration in centiseconds (if flags.b7 set)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_suite_close(int handle_id, int duration_cs);
+
+/*
+ * Set a property on the current test suite
+ * Parameters:
+ *   handle_id - handle ID
+ *   name      - property name
+ *   value     - property value
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_suite_set_property(int handle_id, const char *name, const char *value);
+
+/*
+ * Create a new test case
+ * Parameters:
+ *   handle_id    - handle ID
+ *   id           - test case ID (or NULL for numeric/auto)
+ *   classname    - class name
+ *   name         - test name
+ *   status       - test status
+ *   failure_type - failure type (can be NULL)
+ *   failure_msg  - failure message (can be NULL)
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_case_create(
+    int handle_id,
+    const char *id,
+    const char *classname,
+    const char *name,
+    junit_test_status_t status,
+    const char *failure_type,
+    const char *failure_msg
+);
+
+/*
+ * Close a test case (write it out)
+ * Parameters:
+ *   handle_id - handle ID
+ *   duration  - duration in centiseconds
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_case_close(int handle_id, int duration_cs);
+
+/*
+ * Helper: duplicate a string using malloc
+ */
+char *junit_strdup(const char *s);
+
+/*
+ * Helper: free a string safely
+ */
+void junit_strfree(char **s);
+
+/*
+ * Helper: get current timestamp as ISO 8601 string
+ * Returns: malloc'd string, caller must free
+ */
+char *junit_get_current_timestamp(void);
+
+#endif /* _JUNIT_STATE_H */
