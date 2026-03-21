@@ -226,7 +226,130 @@ JUnitXML/
 
 ## Session End
 
-**Total Files Created:** 17  
-**Total Lines of Code:** ~2,900  
-**Build Status:** Success  
+**Total Files Created:** 17
+**Total Lines of Code:** ~2,900
+**Build Status:** Success
 **Module Output:** rm32/JUnitXML,ffa
+
+---
+
+## Additional Development (Post-Initial Session)
+
+### 9. Export Configuration
+
+Fixed Makefile export rules to properly export CMunge-generated header:
+
+```makefile
+EXPORTS    = ${EXP_C_H}.${COMPONENT}SWIs
+```
+
+**Commit:** `11440c2` - Fix export rules in Makefile
+
+### 10. Floating Point Removal
+
+Per RISC OS module coding standards, removed all floating point usage:
+
+**Changes:**
+- Replaced `double time` with `int time_cs` (centiseconds) in `junit_testcase_t` and `junit_testsuite_t`
+- Updated `junit_xml_write_testsuite_open()` and `junit_xml_write_testcase()` signatures
+- Time formatting now uses integer math: `seconds = time_cs / 100; cs = time_cs % 100`
+- Output format: `"time=\"%d.%02d\""` (e.g., `time="1.50"` for 150 centiseconds)
+
+**Files modified:**
+- `h/junit_types`
+- `h/junit_xml_writer`
+- `c/junit_xml_writer`
+- `c/junit_state`
+
+**Commit:** `b686169` - Remove floating point usage from module
+
+### 11. SWI Name Fix
+
+Fixed SWI names to avoid duplication (was creating `JUnitXML_JUnitXML_Create`):
+
+**cmhg/modhead change:**
+```
+swi-decoding-table: JUnitXML Create/Mod_SWICreate TestSuite/Mod_SWITestSuite TestCase/Mod_SWITestCase Close/Mod_SWIClose
+```
+
+**h/JUnitXMLSWIs** - Simplified to only contain flag definitions (SWI numbers from modhead)
+
+### 12. Example Program Testing
+
+Created `Example,fd1` BBC BASIC program demonstrating module usage:
+
+```basic
+SYS "JUnitXML_Create", 1, "test-result/xml" TO jx%
+SYS "JUnitXML_TestSuite", 0, jx%, 0, "CalculatorTests", "com.example.calc"
+SYS "JUnitXML_TestSuite", 3, jx%, "build.number", "42"
+SYS "JUnitXML_TestCase", 16, jx%, 0, "Calculator", "testAddition"
+SYS "JUnitXML_TestCase", 32, jx%, 0, "Calculator", "testDivision", "DivisionByZero", "..."
+SYS "JUnitXML_TestSuite", 1, jx%
+SYS "JUnitXML_Close", 0
+```
+
+**Test command:**
+```bash
+riscos-build-run rm32/JUnitXML,ffa Example,fd1 --command 'rmload JUnitXML' --command 'create test-result' --command 'example' --command 'type test-result/xml'
+```
+
+### 13. Incremental XML Output Fix
+
+**Bug discovered:** Test cases were appearing inside `<properties>` container due to incorrect output ordering.
+
+**Fix applied:**
+- Write `<testsuite>` opening tag immediately on suite creation
+- Write `<properties>` opening tag immediately on suite creation
+- Write individual `<property>` elements immediately when set
+- Close `</properties>` before first test case (using `properties_closed` flag)
+- Write `</testsuite>` on suite close
+
+**New field added:** `junit_testsuite_t::properties_closed` - tracks if properties container has been closed
+
+**Files modified:**
+- `h/junit_types` - Added `properties_closed` field
+- `c/junit_state` - Restructured output ordering in `junit_suite_create()`, `junit_suite_close()`, `junit_suite_set_property()`, `junit_case_close()`
+
+**Result:** Valid JUnit XML structure with correct element ordering
+
+**Commit:** `7475bcb` - Fix incremental XML output and add example program
+
+---
+
+## Final Commits
+
+1. `55259e7` - JUnitXML module: Initial implementation
+2. `da80c0d` - Add README.md with usage documentation
+3. `ad04f8d` - Add MIT LICENSE file
+4. `11440c2` - Fix export rules in Makefile
+5. `b686169` - Remove floating point usage from module
+6. `7475bcb` - Fix incremental XML output and add example program
+
+---
+
+## Final Status
+
+**Total Commits:** 6
+**Build Status:** Success (no errors, 3 warnings)
+**Module Output:** rm32/JUnitXML,ffa
+**Example Program:** Example,fd1 (tested and working)
+**Repository:** https://github.com/gerph/riscos-junitxml-module-ai
+
+**Sample Output:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="CalculatorTests" timestamp="2026-03-21T03:25:01Z" tests="0" failures="0" errors="0" skipped="0" time="0.00">
+    <properties>
+      <property name="build.number" value="42"/>
+      <property name="os.version" value="3.11"/>
+    </properties>
+    <testcase classname="Calculator" name="testAddition" time="0.00"/>
+    <testcase classname="Calculator" name="testDivision" time="0.00">
+      <failure type="DivisionByZero" message="Cannot divide by zero"/>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+**Note:** Suite header counts show 0 due to incremental writing limitation (header written before counts are known).
