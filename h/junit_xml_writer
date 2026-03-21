@@ -39,7 +39,7 @@ int junit_xml_write_footer(FILE *fp);
  *   failures    - number of failures
  *   errors      - number of errors
  *   skipped     - number of skipped tests
- *   time        - time taken in seconds
+ *   time_cs     - time taken in centiseconds
  * Returns: 0 on success, non-zero on error
  */
 int junit_xml_write_testsuite_open(
@@ -53,7 +53,7 @@ int junit_xml_write_testsuite_open(
     int failures,
     int errors,
     int skipped,
-    double time
+    int time_cs
 );
 
 /*
@@ -87,7 +87,7 @@ int junit_xml_write_properties(FILE *fp, const junit_property_t *properties);
  *   fp            - output file pointer
  *   classname     - class name
  *   name          - test name
- *   time          - time taken in seconds
+ *   time_cs       - time taken in centiseconds
  *   file          - source file (can be NULL)
  *   line          - line number (0 if not set)
  *   id            - test ID (can be NULL)
@@ -102,7 +102,7 @@ int junit_xml_write_testcase(
     FILE *fp,
     const char *classname,
     const char *name,
-    double time,
+    int time_cs,
     const char *file,
     int line,
     const char *id,

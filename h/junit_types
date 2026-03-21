@@ -72,7 +72,7 @@ typedef struct junit_testcase {
     char *failure_message;       /* Failure message (for failure/error) */
     char *system_out;            /* Standard output */
     char *system_err;            /* Standard error */
-    double time;                 /* Time taken in seconds */
+    int time_cs;                 /* Time taken in centiseconds */
     char *file;                  /* Source file */
     int line;                    /* Line number */
     struct junit_testcase *next; /* Next test case in suite */
@@ -87,7 +87,7 @@ typedef struct junit_testsuite {
     char *name;                  /* Suite name */
     char *package;               /* Package name */
     char *hostname;              /* Hostname */
-    double time;                 /* Time taken in seconds */
+    int time_cs;                 /* Time taken in centiseconds */
     char *timestamp;             /* ISO 8601 timestamp string */
     int tests_count;             /* Number of tests */
     int failures_count;          /* Number of failures */

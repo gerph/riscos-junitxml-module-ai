@@ -120,35 +120,37 @@ int junit_xml_write_testsuite_open(
     int failures,
     int errors,
     int skipped,
-    double time
+    int time_cs
 )
 {
+    int seconds, cs;
+    
     if (fprintf(fp, "  <testsuite") < 0) {
         return -1;
     }
-    
+
     /* Name is required */
     if (write_attribute(fp, "name", name) != 0) {
         return -1;
     }
-    
+
     /* Optional attributes */
     if (write_attribute(fp, "package", package) != 0) {
         return -1;
     }
-    
+
     if (write_attribute(fp, "hostname", hostname) != 0) {
         return -1;
     }
-    
+
     if (write_attribute(fp, "id", id) != 0) {
         return -1;
     }
-    
+
     if (write_attribute(fp, "timestamp", timestamp) != 0) {
         return -1;
     }
-    
+
     /* Counts */
     if (fprintf(fp, " tests=\"%d\"", tests) < 0) {
         return -1;
@@ -165,16 +167,18 @@ int junit_xml_write_testsuite_open(
     if (fprintf(fp, " skipped=\"%d\"", skipped) < 0) {
         return -1;
     }
-    
-    /* Time taken */
-    if (fprintf(fp, " time=\"%.3f\"", time) < 0) {
+
+    /* Time taken - convert centiseconds to seconds with 3 decimal places */
+    seconds = time_cs / 100;
+    cs = time_cs % 100;
+    if (fprintf(fp, " time=\"%d.%02d\"", seconds, cs) < 0) {
         return -1;
     }
-    
+
     if (fprintf(fp, ">\n") < 0) {
         return -1;
     }
-    
+
     return 0;
 }
 
@@ -313,7 +317,7 @@ int junit_xml_write_testcase(
     FILE *fp,
     const char *classname,
     const char *name,
-    double time,
+    int time_cs,
     const char *file,
     int line,
     const char *id,
@@ -325,37 +329,40 @@ int junit_xml_write_testcase(
 )
 {
     const char *status_element;
-    
+    int seconds, cs;
+
     if (fprintf(fp, "    <testcase") < 0) {
         return -1;
     }
-    
+
     /* Required attributes */
     if (write_attribute(fp, "classname", classname) != 0) {
         return -1;
     }
-    
+
     if (write_attribute(fp, "name", name) != 0) {
         return -1;
     }
-    
+
     /* Optional attributes */
     if (write_attribute(fp, "file", file) != 0) {
         return -1;
     }
-    
+
     if (line > 0) {
         if (fprintf(fp, " line=\"%d\"", line) < 0) {
             return -1;
         }
     }
-    
+
     if (write_attribute(fp, "id", id) != 0) {
         return -1;
     }
-    
-    /* Time taken */
-    if (fprintf(fp, " time=\"%.3f\"", time) < 0) {
+
+    /* Time taken - convert centiseconds to seconds with 2 decimal places */
+    seconds = time_cs / 100;
+    cs = time_cs % 100;
+    if (fprintf(fp, " time=\"%d.%02d\"", seconds, cs) < 0) {
         return -1;
     }
     

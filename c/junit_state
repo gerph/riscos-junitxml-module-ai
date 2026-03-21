@@ -459,12 +459,12 @@ int junit_suite_close(int handle_id, int duration_cs)
             return -1;
         }
     }
-    
-    /* Convert duration from centiseconds to seconds */
+
+    /* Store duration in centiseconds */
     if (duration_cs > 0) {
-        ts->time = (double)duration_cs / 100.0;
+        ts->time_cs = duration_cs;
     }
-    
+
     /* Write the suite to file */
     if (h->fp != NULL) {
         if (junit_xml_write_testsuite_open(
@@ -478,7 +478,7 @@ int junit_suite_close(int handle_id, int duration_cs)
                 ts->failures_count,
                 ts->errors_count,
                 ts->skipped_count,
-                ts->time
+                ts->time_cs
             ) != 0) {
             return -1;
         }
@@ -657,12 +657,12 @@ int junit_case_close(int handle_id, int duration_cs)
     if (tc == NULL) {
         return -1;
     }
-    
-    /* Convert duration from centiseconds to seconds */
+
+    /* Store duration in centiseconds */
     if (duration_cs > 0) {
-        tc->time = (double)duration_cs / 100.0;
+        tc->time_cs = duration_cs;
     }
-    
+
     /* Update suite counts */
     ts->tests_count++;
     switch (tc->status) {
@@ -685,7 +685,7 @@ int junit_case_close(int handle_id, int duration_cs)
                 h->fp,
                 tc->classname,
                 tc->name,
-                tc->time,
+                tc->time_cs,
                 tc->file,
                 tc->line,
                 tc->id,
@@ -697,7 +697,7 @@ int junit_case_close(int handle_id, int duration_cs)
             ) != 0) {
             return -1;
         }
-        
+
         fflush(h->fp);
     }
     
