@@ -1,0 +1,39 @@
+REM JUnit XML output example
+
+JUnitXML_Create_FilenameGiven = 1
+JUnitXML_Success = (1<<4)
+JUnitXML_Failure = (2<<4)
+JUnitXML_Error = (3<<4)
+JUnitXML_Skipped = (4<<4)
+
+REM Create output file
+SYS "JUnitXML_Create", JUnitXML_Create_FilenameGiven, "test-result/xml" TO jx%
+IF ERR THEN PRINT "Error creating file: "; REPORT$ : END
+
+REM Create a test suite
+SYS "JUnitXML_TestSuite", 0, jx%, 0, "CalculatorTests", "com.example.calc"
+
+REM Set suite properties
+SYS "JUnitXML_TestSuite", 3, jx%, "build.number", "42"
+SYS "JUnitXML_TestSuite", 3, jx%, "os.version", "3.11"
+
+REM Add passing test
+SYS "JUnitXML_TestCase", JUnitXML_Success, jx%, 0, "Calculator", "testAddition"
+SYS "JUnitXML_TestCase", JUnitXML_Success, jx%, 0, "Calculator", "testSubtraction"
+
+REM Add failing test
+SYS "JUnitXML_TestCase", JUnitXML_Failure, jx%, 0, "Calculator", "testDivision", "DivisionByZero", "Cannot divide by zero"
+
+REM Add error test
+SYS "JUnitXML_TestCase", JUnitXML_Error, jx%, 0, "Calculator", "testOverflow", "OverflowError", "Result too large"
+
+REM Add skipped test
+SYS "JUnitXML_TestCase", JUnitXML_Skipped, jx%, 0, "Calculator", "testMultiplication"
+
+REM Close the suite
+SYS "JUnitXML_TestSuite", 1, jx%
+
+REM Close the file
+SYS "JUnitXML_Close", 0
+
+PRINT "JUnit XML written successfully"

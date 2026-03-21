@@ -409,29 +409,55 @@ int junit_suite_create(
 {
     junit_handle_t *h;
     junit_testsuite_t *ts;
-    
+
     h = find_handle(handle_id);
     if (h == NULL) {
         return -1;
     }
-    
+
     /* Close any existing open suite */
     if (h->current_suite != NULL && h->current_suite->is_open) {
         if (junit_suite_close(handle_id, 0) != 0) {
             return -1;
         }
     }
-    
+
     ts = create_testsuite(id, name, package, timestamp);
     if (ts == NULL) {
         return -1;
     }
-    
+
     /* Add to suite list */
     ts->next = h->suites;
     h->suites = ts;
     h->current_suite = ts;
-    
+
+    /* Write the suite header immediately for incremental output */
+    if (h->fp != NULL) {
+        if (junit_xml_write_testsuite_open(
+                h->fp,
+                ts->name,
+                ts->package,
+                ts->hostname,
+                ts->id,
+                ts->timestamp,
+                0,  /* tests count - will be updated later */
+                0,  /* failures count */
+                0,  /* errors count */
+                0,  /* skipped count */
+                0   /* time - will be updated later */
+            ) != 0) {
+            return -1;
+        }
+        
+        /* Write properties container opening tag */
+        if (fprintf(h->fp, "    <properties>\n") < 0) {
+            return -1;
+        }
+        
+        fflush(h->fp);
+    }
+
     return 0;
 }
 
@@ -465,37 +491,19 @@ int junit_suite_close(int handle_id, int duration_cs)
         ts->time_cs = duration_cs;
     }
 
-    /* Write the suite to file */
+    /* Close properties container if not already closed (no test cases) */
+    if (h->fp != NULL && !ts->properties_closed) {
+        if (fprintf(h->fp, "    </properties>\n") < 0) {
+            return -1;
+        }
+    }
+
+    /* Close suite */
     if (h->fp != NULL) {
-        if (junit_xml_write_testsuite_open(
-                h->fp,
-                ts->name,
-                ts->package,
-                ts->hostname,
-                ts->id,
-                ts->timestamp,
-                ts->tests_count,
-                ts->failures_count,
-                ts->errors_count,
-                ts->skipped_count,
-                ts->time_cs
-            ) != 0) {
-            return -1;
-        }
-        
-        /* Write properties */
-        if (junit_xml_write_properties(h->fp, ts->properties) != 0) {
-            return -1;
-        }
-        
-        /* Write all test cases */
-        /* Note: test cases are written as they're closed, not here */
-        /* This is handled in junit_case_close */
-        
         if (junit_xml_write_testsuite_close(h->fp) != 0) {
             return -1;
         }
-        
+
         fflush(h->fp);
     }
     
@@ -546,7 +554,15 @@ int junit_suite_set_property(int handle_id, const char *name, const char *value)
         prev_ptr = &(*prev_ptr)->next;
     }
     *prev_ptr = prop;
-    
+
+    /* Write property immediately for incremental output */
+    if (h->fp != NULL) {
+        if (junit_xml_write_property(h->fp, prop->name, prop->value) != 0) {
+            return -1;
+        }
+        fflush(h->fp);
+    }
+
     return 0;
 }
 
@@ -678,7 +694,16 @@ int junit_case_close(int handle_id, int duration_cs)
         default:
             break;
     }
-    
+
+    /* Close properties container before first test case */
+    if (h->fp != NULL && !ts->properties_closed) {
+        if (fprintf(h->fp, "    </properties>\n") < 0) {
+            return -1;
+        }
+        ts->properties_closed = 1;
+        fflush(h->fp);
+    }
+
     /* Write the test case to file */
     if (h->fp != NULL) {
         if (junit_xml_write_testcase(
