@@ -54,10 +54,14 @@ jobs:
       - echo *** Load the module ***
       - RMLoad rm32.JUnitXML
 
-      # Insert any testing here...
-      #- echo
-      #- echo *** Test that the module works ***
-      #- /TestModule
+      # Run example program
+      - echo
+      - echo *** Run the example program ***
+      - create test-result
+      - basic Example
+      - echo
+      - echo *** Display the output ***
+      - type test-result/xml
 
       - echo
       - echo *** Kill the module ***
