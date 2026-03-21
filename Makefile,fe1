@@ -18,8 +18,7 @@ CLEANTARGET = cleantarget
 #   ${EXP_C_H}.${COMPONENT}SWIs
 # To export to the library in a subdirectory, use an export like:
 #   ${EXP_LIB}.${COMPONENT}.h.myheader
-EXPORTS    = ${EXP_C_H}.${COMPONENT}SWIs \
-             ${EXP_C_H}.${COMPONENT}SWIs.h
+EXPORTS    = ${EXP_C_H}.${COMPONENT}SWIs
 
 # Resources you want to be exported as part of the 'resources' phase of the build
 #RESOURCES  = ${RESDIR}.${COMPONENT}.Messages
@@ -59,9 +58,6 @@ o.junit_xml_writer: h/junit_xml_writer.h h/junit_types.h
 # export rule
 ${EXP_C_H}.${COMPONENT}SWIs: cmhg/modhead
 	${CMHG} ${CMHGFLAGS} -xh $@ cmhg/modhead
-# Also export our hand-written SWI header
-${EXP_C_H}.${COMPONENT}SWIs.h: h/JUnitXMLSWIs.h
-	${CP} $? $@ ${CPFLAGS}
 
 cleantarget:
 	${DESTROY} h.modhead
