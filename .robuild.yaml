@@ -58,7 +58,7 @@ jobs:
       - echo
       - echo *** Run the example program ***
       - create test-result
-      - basic Example
+      - basic -quit Example
       - echo
       - echo *** Display the output ***
       - type test-result/xml
