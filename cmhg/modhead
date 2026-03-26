@@ -41,7 +41,7 @@ help-string: JUnitXML Module_MajorVersion_CMHG
 ; &C0000- &FFFC0 are for user applications.
 ; Bit 17 will always be clear on the SWI chunk number.
 ; Consult PRM 1-26 for more details.
-swi-chunk-base-number: &C0000
+swi-chunk-base-number: &5AC00
 
 ; If you have any error messages in your module that are returned through
 ; the standard interfaces, you should use different error numbers for each,
@@ -52,7 +52,7 @@ swi-chunk-base-number: &C0000
 ; &1B000000- &1BFFFFFF are for program (NOT module) errors.
 ; &80000000- &FFFFFFFF are for serious hardware exceptions.
 ; Consult PRM 1-43, 5a-493 for more details.
-error-base: &840000
+error-base: &822A00
 
 ; Allocating error messages within the module is more efficient than doing
 ; so manually in your C code, and is less likely to pollute error number
