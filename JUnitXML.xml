@@ -1,0 +1,894 @@
+<?xml version="1.0"?>
+<!DOCTYPE riscos-prm PUBLIC "-//Gerph//DTD PRM documentation 1.03//EN"
+                            "http://gerph.org/dtd/103/prm.dtd">
+<riscos-prm>
+<chapter title="JUnitXML">
+
+<section title="Introduction">
+
+<p>
+The JUnitXML module provides an interface for generating JUnit-compatible XML test result files
+on RISC OS systems. It allows test frameworks and test runners to record test results in a
+standardised format that can be consumed by continuous integration systems, test reporting tools,
+and other software development utilities.
+</p>
+
+<p>
+The module implements a SWI-based interface for creating test suites, recording test cases with
+their outcomes (success, failure, error, or skipped), and generating XML output conforming to the
+JUnit XML schema.
+</p>
+
+<p>
+Key features include:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p>Support for multiple test suites within a single output file</p></item>
+ <item><p>Flexible timestamp handling (current time, RISC OS time, Unix time, or ISO 8601 strings)</p></item>
+ <item><p>Package and class name support for organised test hierarchies</p></item>
+ <item><p>Custom properties for test suites</p></item>
+ <item><p>Detailed failure and error reporting with type and message</p></item>
+ <item><p>Duration tracking for test suites and individual test cases</p></item>
+</list>
+</p>
+
+</section>
+
+<section title="Technical Details">
+
+<p>
+The JUnitXML module maintains internal state for each open handle, tracking test suites and test
+cases as they are created. The module uses a handle-based API where each handle represents an
+independent XML output stream.
+</p>
+
+<subsection title="Memory Management">
+
+<p>
+The module allocates memory dynamically for:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p>Handle structures</p></item>
+ <item><p>Test suite structures and their properties</p></item>
+ <item><p>Test case structures</p></item>
+ <item><p>String data (names, IDs, messages, timestamps)</p></item>
+</list>
+</p>
+
+<p>
+All memory is freed when a handle is closed or when the module is terminated. The module maintains
+a linked list of handles to allow multiple concurrent XML output streams.
+</p>
+
+</subsection>
+
+<subsection title="Timestamp Handling">
+
+<p>
+The module supports multiple timestamp formats for test suite creation:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p><strong>Current time:</strong> Automatically uses the current system time</p></item>
+ <item><p><strong>RISC OS time:</strong> Accepts a RISC OS 5-byte quin (centiseconds since 1900-01-01)</p></item>
+ <item><p><strong>Unix time:</strong> Accepts a Unix epoch timestamp (seconds since 1970-01-01)</p></item>
+ <item><p><strong>ISO 8601:</strong> Accepts a pre-formatted ISO 8601 timestamp string</p></item>
+</list>
+</p>
+
+<p>
+RISC OS time values are converted to ISO 8601 format using the Territory_ConvertDateAndTime SWI
+for local time conversion, with manual adjustment for UTC epoch differences.
+</p>
+
+</subsection>
+
+<subsection title="XML Output">
+
+<p>
+The module generates JUnit-compatible XML output with the following structure:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p>XML declaration with UTF-8 encoding</p></item>
+ <item><p>Root testsuites element with aggregate statistics</p></item>
+ <item><p>Individual testsuite elements with properties and test cases</p></item>
+ <item><p>Test case elements with optional failure or error child elements</p></item>
+</list>
+</p>
+
+<p>
+The XML is written incrementally as test cases are closed, reducing memory usage for large test
+suites.
+</p>
+
+</subsection>
+
+</section>
+
+<section title="SWI Calls">
+
+<swi-definition name='JUnitXML_Create' number='58B00'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0' name='JUnitXML_Create_FilenameGiven'>
+      If set, R1 points to a filename string
+     </bit>
+     <bit number='1-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Filename pointer (if bit 0 of flags set)
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Handle ID (positive) or error code (negative)
+   </register-use>
+  </exit>
+  <use>
+   <p>
+   JUnitXML_Create creates a new JUnit XML output handle. The handle can be used to create test
+   suites and record test results.
+   </p>
+
+   <p>
+   Flags:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>Bit 0 (JUnitXML_Create_FilenameGiven): If set, R1 points to a filename string where
+    the XML output will be written. If clear, the module will generate a default filename.</p></item>
+   </list>
+   </p>
+
+   <p>
+   The function returns a positive handle ID on success, or a negative error code on failure.
+   </p>
+  </use>
+  <example>
+   <p><userinput>SWI "JUnitXML_Create"</userinput></p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_Close'/>
+   <reference type='swi' name='JUnitXML_TestSuite'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestSuite' number='58B01'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      Operation code: 0=Create, 1=Close, 2=Update, 3=Property
+     </bit>
+     <bit number='4' name='PackageSupplied'>
+      If set, R4 points to a package name
+     </bit>
+     <bit number='5-6' name='TSFormat'>
+      Timestamp format: 0=Current, 1=RISC OS, 2=Unix, 3=ISO 8601
+     </bit>
+     <bit number='7' name='DurationPresent'>
+      If set, duration is supplied
+     </bit>
+     <bit number='8-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    Operation-specific parameter 1
+   </register-use>
+   <register-use number='3'>
+    Operation-specific parameter 2
+   </register-use>
+   <register-use number='4'>
+    Operation-specific parameter 3
+   </register-use>
+   <register-use number='5'>
+    Operation-specific parameter 4
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+   <processor-flag name='C'>
+    Set if error occurred
+   </processor-flag>
+  </exit>
+  <use>
+   <p>
+   JUnitXML_TestSuite performs operations on test suites. The operation is determined by bits 0-3
+   of the flags word.
+   </p>
+
+   <p>
+   <strong>Operation Create (0):</strong> Creates a new test suite within the handle.
+   </p>
+
+   <p>
+   Flags for Create:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>Bits 0-3: Operation code (0 = Create)</p></item>
+    <item><p>Bit 4 (JUnitXML_TestSuite_PackageSupplied): If set, R4 points to a package name</p></item>
+    <item><p>Bits 5-6 (JUnitXML_TestSuite_TSMask): Timestamp format</p></item>
+    <item><p>Bit 7 (JUnitXML_TestSuite_DurationPresent): Reserved for Create</p></item>
+   </list>
+   </p>
+
+   <p>
+   Parameters for Create:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R2 = ID string pointer (or NULL for auto-generated)</p></item>
+    <item><p>R3 = Name string pointer</p></item>
+    <item><p>R4 = Package string pointer (if bit 4 set, else ignored)</p></item>
+    <item><p>R5 = Timestamp (format depends on bits 5-6):</p>
+     <list type='unordered'>
+      <item><p>Format 0 (JUNIT_TS_CURRENT): Ignored, uses current time</p></item>
+      <item><p>Format 1 (JUNIT_TS_RISCOS): Pointer to 5-byte RISC OS time quin</p></item>
+      <item><p>Format 2 (JUNIT_TS_UNIX): Unix epoch time (seconds)</p></item>
+      <item><p>Format 3 (JUNIT_TS_ISO8601): Pointer to ISO 8601 string</p></item>
+     </list>
+    </item>
+   </list>
+   </p>
+
+   <p>
+   <strong>Operation Close (1):</strong> Closes the current test suite, writing final statistics.
+   </p>
+
+   <p>
+   Flags for Close:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>Bits 0-3: Operation code (1 = Close)</p></item>
+    <item><p>Bit 7 (JUnitXML_TestSuite_DurationPresent): If set, duration is supplied</p></item>
+   </list>
+   </p>
+
+   <p>
+   Parameters for Close:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R2 = Duration in centiseconds (if bit 7 set, else ignored)</p></item>
+   </list>
+   </p>
+
+   <p>
+   <strong>Operation Property (3):</strong> Sets a property on the current test suite.
+   </p>
+
+   <p>
+   Parameters for Property:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R2 = Property name string pointer</p></item>
+    <item><p>R3 = Property value string pointer</p></item>
+   </list>
+   </p>
+  </use>
+  <example>
+   <p>Creating a test suite with current timestamp:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #0          ; flags = Create, current time<br/>
+    MOV R1, handle      ; handle ID<br/>
+    LDR R2, =suite_id   ; suite ID string<br/>
+    LDR R3, =suite_name ; suite name string<br/>
+    SWI "JUnitXML_TestSuite"
+   </extended-example>
+   </p>
+
+   <p>Closing a test suite with duration:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #1 ORR (128) ; flags = Close, duration present<br/>
+    MOV R1, handle       ; handle ID<br/>
+    MOV R2, #100         ; duration = 100 centiseconds<br/>
+    SWI "JUnitXML_TestSuite"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_Create'/>
+   <reference type='swi' name='JUnitXML_TestCase'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestCase' number='58B02'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      Operation code: 0=Create, 1=Close, 2=Update
+     </bit>
+     <bit number='4-7' name='Status'>
+      Test status: 0=None, 1=Success, 2=Failure, 3=Error, 4=Skipped
+     </bit>
+     <bit number='8' name='ErrorBlock'>
+      If set, failure_type is a RISC OS error block
+     </bit>
+     <bit number='9-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    Operation-specific parameter 1
+   </register-use>
+   <register-use number='3'>
+    Operation-specific parameter 2
+   </register-use>
+   <register-use number='4'>
+    Operation-specific parameter 3
+   </register-use>
+   <register-use number='5'>
+    Operation-specific parameter 4
+   </register-use>
+   <register-use number='6'>
+    Operation-specific parameter 5
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+   <processor-flag name='C'>
+    Set if error occurred
+   </processor-flag>
+  </exit>
+  <use>
+   <p>
+   JUnitXML_TestCase performs operations on test cases. The operation is determined by bits 0-3
+   of the flags word.
+   </p>
+
+   <p>
+   <strong>Operation Create (0):</strong> Creates a new test case within the current suite.
+   </p>
+
+   <p>
+   Flags for Create:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>Bits 0-3: Operation code (0 = Create)</p></item>
+    <item><p>Bits 4-7 (JUnitXML_TestCase_StatusMask): Test status code</p></item>
+    <item><p>Bit 8 (JUnitXML_TestCase_ErrorBlock): If set, failure_type is a RISC OS error block</p></item>
+   </list>
+   </p>
+
+   <p>
+   Status codes:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>0: JUNIT_STATUS_NONE - No status specified</p></item>
+    <item><p>1: JUNIT_STATUS_SUCCESS - Test passed</p></item>
+    <item><p>2: JUNIT_STATUS_FAILURE - Test failed (assertion failure)</p></item>
+    <item><p>3: JUNIT_STATUS_ERROR - Test errored (unexpected error)</p></item>
+    <item><p>4: JUNIT_STATUS_SKIPPED - Test was skipped</p></item>
+   </list>
+   </p>
+
+   <p>
+   Parameters for Create:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R2 = ID string pointer (or NULL for auto-generated)</p></item>
+    <item><p>R3 = Classname string pointer</p></item>
+    <item><p>R4 = Test name string pointer</p></item>
+    <item><p>R5 = Failure type string pointer (or NULL)</p></item>
+    <item><p>R6 = Failure message string pointer (or NULL)</p></item>
+   </list>
+   </p>
+
+   <p>
+   <strong>Operation Close (1):</strong> Closes the current test case, writing it to the output.
+   </p>
+
+   <p>
+   Parameters for Close:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R2 = Duration in centiseconds</p></item>
+   </list>
+   </p>
+  </use>
+  <example>
+   <p>Creating a successful test case:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #16         ; flags = Create, status = SUCCESS (1 &lt;&lt; 4)<br/>
+    MOV R1, handle      ; handle ID<br/>
+    LDR R2, =test_id    ; test ID string<br/>
+    LDR R3, =classname  ; class name string<br/>
+    LDR R4, =test_name  ; test name string<br/>
+    MOV R5, #0          ; no failure type<br/>
+    MOV R6, #0          ; no failure message<br/>
+    SWI "JUnitXML_TestCase"
+   </extended-example>
+   </p>
+
+   <p>Creating a failed test case:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #32         ; flags = Create, status = FAILURE (2 &lt;&lt; 4)<br/>
+    MOV R1, handle      ; handle ID<br/>
+    LDR R2, =test_id    ; test ID string<br/>
+    LDR R3, =classname  ; class name string<br/>
+    LDR R4, =test_name  ; test name string<br/>
+    LDR R5, =fail_type  ; "AssertionError"<br/>
+    LDR R6, =fail_msg   ; "Expected 5 but got 3"<br/>
+    SWI "JUnitXML_TestCase"
+   </extended-example>
+   </p>
+
+   <p>Closing a test case with duration:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #1          ; flags = Close<br/>
+    MOV R1, handle      ; handle ID<br/>
+    MOV R2, #50         ; duration = 50 centiseconds<br/>
+    SWI "JUnitXML_TestCase"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_TestSuite'/>
+   <reference type='swi' name='JUnitXML_Close'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_Close' number='58B03'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0' name='JUnitXML_Close_FilenameGiven'>
+      If set, R1 points to an output filename
+     </bit>
+     <bit number='1-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Filename pointer (if bit 0 set)
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+   <processor-flag name='C'>
+    Set if error occurred
+   </processor-flag>
+  </exit>
+  <use>
+   <p>
+   JUnitXML_Close closes a JUnit XML handle, writing the final XML structure and freeing resources.
+   The handle is removed from the internal handle list.
+   </p>
+
+   <p>
+   Flags:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>Bit 0 (JUnitXML_Close_FilenameGiven): If set, R1 points to an output filename.
+    This overrides the filename specified during handle creation.</p></item>
+   </list>
+   </p>
+
+   <p>
+   The function closes the most recently created handle if multiple handles exist. For precise
+   control, ensure handles are closed in reverse order of creation.
+   </p>
+  </use>
+  <example>
+   <p>Closing a handle with the original filename:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #0          ; flags = use original filename<br/>
+    SWI "JUnitXML_Close"
+   </extended-example>
+   </p>
+
+   <p>Closing a handle with a different filename:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #1          ; flags = filename given<br/>
+    LDR R1, =newname    ; new filename string<br/>
+    SWI "JUnitXML_Close"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_Create'/>
+  </related>
+</swi-definition>
+
+</section>
+
+<section title="Error Messages">
+
+<p>
+The JUnitXML module returns error blocks in the standard RISC OS format. The error numbers are
+module-specific with base &amp;840000, and are returned as negative values from SWI calls or via
+the carry flag.
+</p>
+
+<error-definition number='840000' name='JUnitXML_InitFailed' description='Module initialisation failed'>
+  <use>
+   <p>Module initialisation failed. The state manager could not be initialised.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840001' name='JUnitXML_CreateFailed' description='Failed to create handle'>
+  <use>
+   <p>Failed to create a new JUnit XML handle. This may be due to memory exhaustion or invalid
+   parameters.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840002' name='JUnitXML_CreateSuiteFailed' description='Failed to create test suite'>
+  <use>
+   <p>Failed to create a test suite within the handle. This may occur if the handle is invalid or
+   if memory allocation fails.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840003' name='JUnitXML_CloseSuiteFailed' description='Failed to close test suite'>
+  <use>
+   <p>Failed to close a test suite. This may occur if the suite is not properly formed or if
+   writing to the output file fails.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840004' name='JUnitXML_BadSuiteOp' description='Invalid test suite operation'>
+  <use>
+   <p>An invalid operation code was specified for JUnitXML_TestSuite. The operation must be 0
+   (Create), 1 (Close), or 3 (Property).</p>
+  </use>
+</error-definition>
+
+<error-definition number='840005' name='JUnitXML_SetPropertyFailed' description='Failed to set suite property'>
+  <use>
+   <p>Failed to set a property on a test suite. This may occur if the property name or value is
+   invalid, or if memory allocation fails.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840006' name='JUnitXML_CreateCaseFailed' description='Failed to create test case'>
+  <use>
+   <p>Failed to create a test case. This may occur if the handle or current suite is invalid, or
+   if memory allocation fails.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840007' name='JUnitXML_CloseCaseFailed' description='Failed to close test case'>
+  <use>
+   <p>Failed to close a test case. This may occur if writing to the output file fails.</p>
+  </use>
+</error-definition>
+
+<error-definition number='840008' name='JUnitXML_BadCaseOp' description='Invalid test case operation'>
+  <use>
+   <p>An invalid operation code was specified for JUnitXML_TestCase. The operation must be 0
+   (Create) or 1 (Close).</p>
+  </use>
+</error-definition>
+
+<error-definition number='840009' name='JUnitXML_CloseFailed' description='Failed to close handle'>
+  <use>
+   <p>Failed to close a JUnit XML handle. This may occur if writing the final XML structure fails
+   or if the handle is invalid.</p>
+  </use>
+</error-definition>
+
+<error-definition number='84000A' name='JUnitXML_NoHandle' description='No handle available to close'>
+  <use>
+   <p>No handle is available to close. All handles may have already been closed, or the module
+   may not have been initialised.</p>
+  </use>
+</error-definition>
+
+</section>
+
+<section title="Usage">
+
+<p>
+The JUnitXML module is loaded automatically when a program links against it, or it can be loaded
+manually using the RMEnsure command.
+</p>
+
+<subsection title="Loading the Module">
+
+<p>
+To load the module manually:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p><userinput>*RMEnsure JUnitXML 0.01 RMLoad JUnitXML</userinput></p></item>
+</list>
+</p>
+
+<p>
+The module will be loaded from the usual module search path. Once loaded, the SWI calls described
+above can be used to create and manage JUnit XML output.
+</p>
+
+</subsection>
+
+<subsection title="Typical Usage Pattern">
+
+<p>
+A typical usage pattern for generating JUnit XML output:
+</p>
+
+<p>
+<list type='ordered'>
+ <item><p>Call JUnitXML_Create to obtain a handle</p></item>
+ <item><p>Call JUnitXML_TestSuite with operation Create to start a test suite</p></item>
+ <item><p>For each test case:</p>
+  <list type='unordered'>
+   <item><p>Call JUnitXML_TestCase with operation Create</p></item>
+   <item><p>Call JUnitXML_TestCase with operation Close</p></item>
+  </list>
+ </item>
+ <item><p>Call JUnitXML_TestSuite with operation Close to finish the test suite</p></item>
+ <item><p>Call JUnitXML_Close to close the handle and write the final XML</p></item>
+</list>
+</p>
+
+</subsection>
+
+<subsection title="Unloading the Module">
+
+<p>
+To unload the module:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p><userinput>*RMUnLoad JUnitXML</userinput></p></item>
+</list>
+</p>
+
+<p>
+All open handles will be closed and their resources freed when the module is unloaded.
+</p>
+
+</subsection>
+
+</section>
+
+<section title="Compatibility">
+
+<p>
+The JUnitXML module is compatible with:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p>RISC OS 3 and later</p></item>
+ <item><p>RISC OS 5 and later (32-bit and 64-bit builds)</p></item>
+ <item><p>RPCEmu and other RISC OS emulators</p></item>
+</list>
+</p>
+
+<p>
+The module requires the following SWIs to be available:
+</p>
+
+<p>
+<list type='unordered'>
+ <item><p>Territory_ConvertDateAndTime (for timestamp conversion)</p></item>
+ <item><p>OS_GBPB (for file output)</p></item>
+ <item><p>OS_Module (for module services)</p></item>
+</list>
+</p>
+
+</section>
+
+<section title="Examples">
+
+<subsection title="Complete Example in C">
+
+<p>
+This example shows how to create a simple JUnit XML file with one test suite containing three
+test cases:
+</p>
+
+<p>
+<extended-example type='c'>
+#include &lt;stdio.h&gt;<br/>
+#include "swis.h"<br/>
+#include "kernel.h"<br/>
+<br/>
+#define JUnitXML_Create_FilenameGiven  (1 &lt;&lt; 0)<br/>
+#define JUnitXML_TestSuite_OpCreate    0<br/>
+#define JUnitXML_TestSuite_OpClose     1<br/>
+#define JUnitXML_TestCase_OpCreate     0<br/>
+#define JUnitXML_TestCase_OpClose      1<br/>
+#define JUNIT_STATUS_SUCCESS           1<br/>
+#define JUNIT_STATUS_FAILURE           2<br/>
+<br/>
+int main(void)<br/>
+{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;_kernel_swi_regs r;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;_kernel_oserror *err;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;int handle;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Create a handle with output filename */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_Create_FilenameGiven;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = (int)"TestResults.xml";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B00, &amp;r, &amp;r); /* JUnitXML_Create */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;printf("Failed to create handle: %s\\n", err->errmess);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return 1;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;handle = r.r[0];<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Create a test suite */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestSuite_OpCreate; /* Create, current time */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = (int)"suite1";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[3] = (int)"MyTestSuite";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B01, &amp;r, &amp;r); /* JUnitXML_TestSuite */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;printf("Failed to create suite: %s\\n", err->errmess);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return 1;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Create test case 1: success */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpCreate | (JUNIT_STATUS_SUCCESS &lt;&lt; 4);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = (int)"test1";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[3] = (int)"MyTestClass";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[4] = (int)"test_addition";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[5] = 0;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[6] = 0;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r); /* JUnitXML_TestCase */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Close test case 1 */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpClose;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 25; /* 25 centiseconds */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Create test case 2: failure */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpCreate | (JUNIT_STATUS_FAILURE &lt;&lt; 4);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = (int)"test2";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[3] = (int)"MyTestClass";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[4] = (int)"test_subtraction";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[5] = (int)"AssertionError";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[6] = (int)"Expected 3 but got 4";<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Close test case 2 */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpClose;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 30;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Close the test suite */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestSuite_OpClose | (1 &lt;&lt; 7); /* Duration present */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 100; /* 100 centiseconds total */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B01, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;/* Close the handle */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = 0;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B03, &amp;r, &amp;r); /* JUnitXML_Close */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;printf("JUnit XML file created successfully\\n");<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;return 0;<br/>
+<br/>
+error:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;printf("Error: %s\\n", err ? err-&gt;errmess : "Unknown");<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;return 1;<br/>
+}<br/>
+</extended-example>
+</p>
+
+</subsection>
+
+<subsection title="Example Output">
+
+<p>
+The above C code would generate XML similar to:
+</p>
+
+<p>
+<extended-example type='format'>
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;<br/>
+&lt;testsuites&gt;<br/>
+&nbsp;&nbsp;&lt;testsuite name="MyTestSuite" package=""<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id="suite1" tests="2" failures="1" errors="0" skipped="0"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;time="1.00" timestamp="2026-03-27T10:30:00Z"&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&lt;testcase id="test1" classname="MyTestClass" name="test_addition"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;time="0.25"/&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&lt;testcase id="test2" classname="MyTestClass" name="test_subtraction"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;time="0.30"&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;failure type="AssertionError"&gt;Expected 3 but got 4&lt;/failure&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&lt;/testcase&gt;<br/>
+&nbsp;&nbsp;&lt;/testsuite&gt;<br/>
+&lt;/testsuites&gt;<br/>
+</extended-example>
+</p>
+
+</subsection>
+
+</section>
+
+</chapter>
+
+<meta>
+  <maintainer>
+   <email name="Charles Ferguson" address="gerph@gerph.org"/>
+  </maintainer>
+  <disclaimer>
+   <p>Copyright © 2026 Charles Ferguson. All rights reserved.</p>
+   <p>This documentation is provided "as is" without warranty of any kind.</p>
+  </disclaimer>
+  <history>
+   <revision number="1" date="27 March 2026" author="CF" title="Initial version">
+    <change>Created initial PRM-in-XML documentation for JUnitXML module</change>
+   </revision>
+  </history>
+  <related>
+   <reference type='document' href='?' name='JUnit XML Schema Documentation'/>
+   <reference type='link' href='https://github.com/junit-team/junit5' name='JUnit 5 Project'/>
+  </related>
+</meta>
+
+</riscos-prm>
