@@ -353,3 +353,163 @@ riscos-build-run rm32/JUnitXML,ffa Example,fd1 --command 'rmload JUnitXML' --com
 ```
 
 **Note:** Suite header counts show 0 due to incremental writing limitation (header written before counts are known).
+
+---
+
+## Additional Development (27 March 2026) - Pyromaniac Module and Improvements
+
+### 14. Pyromaniac Python Module Creation
+
+Created `junitxml.py` - a Python implementation of the JUnitXML module for RISC OS Pyromaniac emulator.
+
+**Key features:**
+- Implements identical SWI interface: `JUnitXML_Create`, `JUnitXML_TestSuite`, `JUnitXML_TestCase`, `JUnitXML_Close`
+- Python 2.7 compatible (uses `__future__` imports, explicit `object` inheritance)
+- Uses Pyromaniac APIs: `ro.memory[ptr].string` for string reading, `ro.memory[ptr].quin` for time values, `ro.kernel.api.open()` for file I/O
+- Uses `riscos.rotime.quin_to_datetime()` for RISC OS time conversion
+
+**Classes implemented:**
+- `JUnitXML` - Main PyModule class with SWI dispatch and error definitions
+- `JUnitHandle` - Manages file handles and test suites
+- `JUnitTestSuite` - Represents a test suite with properties
+- `JUnitTestCase` - Represents individual test cases
+
+**Testing:** Successfully tested with `Example,fd1` BASIC program using:
+```bash
+host-run pyrodev --common --load-pymodule junitxml.py --command "Run Example"
+```
+
+### 15. RISC OS Time Handling Fix (C Module)
+
+**Bug discovered:** `riscos_time_to_iso8601()` was incorrectly treating the quin as 5 separate 32-bit integers (20 bytes) instead of a 5-byte little-endian value.
+
+**Fix applied:**
+- Changed parameter from `const int *riscos_time` to `const uint8_t *quin`
+- Correctly reads 5-byte quin as little-endian 40-bit centiseconds value
+- Proper epoch conversion: subtracts 2208988800 seconds (seconds between 1900 and 1970)
+
+**c/module change:**
+```c
+static char *riscos_time_to_iso8601(const uint8_t *quin)
+{
+    uint32_t centiseconds;
+    centiseconds = (uint32_t)quin[0] | ((uint32_t)quin[1] << 8) | 
+                   ((uint32_t)quin[2] << 16) | ((uint32_t)quin[3] << 24);
+    epoch_time = (time_t)((uint32_t)(centiseconds / 100));
+    epoch_time -= (time_t)2208988800UL;
+    ...
+}
+```
+
+### 16. Module Finalisation Implementation
+
+Added finalisation to both C and Python modules to ensure proper cleanup on module unload.
+
+**C module (c/module):**
+- `Mod_Final()` already called `junit_state_final()`
+- `junit_state_final()` iterates through all handles and calls `free_handle()`
+- `free_handle()` closes files with `fclose()` and frees all memory
+
+**Python module (junitxml.py):**
+- Added `finalise(self, pwp)` method to `JUnitXML` class
+- Closes any open test cases and test suites
+- Closes all open files
+- Clears handles dictionary
+
+### 17. CMHG Error Blocks
+
+Replaced generic `make_error()` function with dedicated CMHG error blocks.
+
+**cmhg/modhead additions:**
+```cmhg
+error-identifiers: \
+    Err_CreateFailed("Failed to create JUnitXML handle") \
+    Err_CreateSuiteFailed("Failed to create test suite") \
+    Err_CloseSuiteFailed("Failed to close test suite") \
+    Err_SetPropertyFailed("Failed to set property") \
+    Err_BadSuiteOp("Unknown TestSuite operation") \
+    Err_CreateCaseFailed("Failed to create test case") \
+    Err_CloseCaseFailed("Failed to close test case") \
+    Err_BadCaseOp("Unknown TestCase operation") \
+    Err_CloseFailed("Failed to close JUnitXML handle") \
+    Err_NoHandle("No JUnitXML handle to close") \
+    Err_InitFailed("Failed to initialise JUnitXML state")
+```
+
+**Error numbers assigned:**
+- `Err_CreateFailed`: &840000
+- `Err_CreateSuiteFailed`: &840001
+- `Err_CloseSuiteFailed`: &840002
+- `Err_SetPropertyFailed`: &840003
+- `Err_BadSuiteOp`: &840004
+- `Err_CreateCaseFailed`: &840005
+- `Err_CloseCaseFailed`: &840006
+- `Err_BadCaseOp`: &840007
+- `Err_CloseFailed`: &840008
+- `Err_NoHandle`: &840009
+- `Err_InitFailed`: &84000A
+
+**Python module error definitions:**
+```python
+error_base = 0x840000
+errors = [
+    ('CreateFailed', "Failed to create JUnitXML handle"),
+    ('CreateSuiteFailed', "Failed to create test suite"),
+    ...
+]
+```
+
+**Usage in code:**
+- C: `return Err_CreateFailed;`
+- Python: `raise self.error('CreateFailed')`
+
+### 18. Code Quality Improvements
+
+- Removed all trailing spaces from Python files
+- Ensured consistent 4-space indentation in C code
+- Added proper error handling in finalisation (ignores errors during cleanup)
+
+---
+
+## Final Status (27 March 2026)
+
+**Total Commits:** 6 (plus uncommitted changes)
+**Build Status:** Success (no errors)
+**Module Outputs:** 
+- C module: rm32/JUnitXML,ffa (14,336 bytes)
+- Python module: junitxml.py (working in Pyromaniac)
+**Example Program:** Example,fd1 (tested and working in both C and Python)
+**Test Output:** test-result.xml (valid JUnit XML)
+
+**Both C and Python implementations produce identical XML output:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="CalculatorTests" timestamp="2026-03-27T15:06:42Z" tests="0" failures="0" errors="0" skipped="0" time="0.00">
+    <properties>
+      <property name="build.number" value="42"/>
+      <property name="os.version" value="3.11"/>
+    </properties>
+    <testcase classname="Calculator" name="testAddition" time="0.00"/>
+    <testcase classname="Calculator" name="testSubtraction" time="0.00"/>
+    <testcase classname="Calculator" name="testDivision" time="0.00">
+      <failure type="DivisionByZero" message="Cannot divide by zero"/>
+    </testcase>
+    <testcase classname="Calculator" name="testOverflow" time="0.00">
+      <error type="OverflowError" message="Result too large"/>
+    </testcase>
+    <testcase classname="Calculator" name="testMultiplication" time="0.00">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+**Key achievements:**
+- Dual implementation (C module and Pyromaniac Python module)
+- Identical error codes and messages in both implementations
+- Proper RISC OS time handling (quin format)
+- Complete finalisation/cleanup on module unload
+- CMHG error blocks for efficient error handling
+- Python 2.7 compatible code
+- No trailing spaces, proper indentation

@@ -58,7 +58,18 @@ error-base: &840000
 ; so manually in your C code, and is less likely to pollute error number
 ; space. The number is optional, and if omitted will be allocated from the
 ; error chunk.
-;error-identifiers: err_Silly(&1234,"Silly")
+error-identifiers: \
+    Err_CreateFailed("Failed to create JUnitXML handle") \
+    Err_CreateSuiteFailed("Failed to create test suite") \
+    Err_CloseSuiteFailed("Failed to close test suite") \
+    Err_SetPropertyFailed("Failed to set property") \
+    Err_BadSuiteOp("Unknown TestSuite operation") \
+    Err_CreateCaseFailed("Failed to create test case") \
+    Err_CloseCaseFailed("Failed to close test case") \
+    Err_BadCaseOp("Unknown TestCase operation") \
+    Err_CloseFailed("Failed to close JUnitXML handle") \
+    Err_NoHandle("No JUnitXML handle to close") \
+    Err_InitFailed("Failed to initialise JUnitXML state")
 
 ; When the module is initialised, this routine will be entered. You should
 ; be very careful to initialise your module safely. If anything fails, you
