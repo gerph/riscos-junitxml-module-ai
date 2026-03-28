@@ -18,7 +18,7 @@ from riscos.rotime import quin_to_datetime
 
 
 # SWI base number - must match the C module's allocation
-SWI_BASE = 0xC0540
+SWI_BASE = 0x5AC00
 
 # SWI offsets
 SWI_JUnitXML_Create = 0
@@ -314,7 +314,7 @@ class JUnitXML(PyModule, object):
         'TestCase',
         'Close',
     ]
-    error_base = 0x840000
+    error_base = 0x822A00
     errors = [
         ('CreateFailed', "Failed to create JUnitXML handle"),
         ('CreateSuiteFailed', "Failed to create test suite"),

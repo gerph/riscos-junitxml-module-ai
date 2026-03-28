@@ -114,7 +114,7 @@ suites.
 
 <section title="SWI Calls">
 
-<swi-definition name='JUnitXML_Create' number='58B00'>
+<swi-definition name='JUnitXML_Create' number='5AC00'>
   <entry>
    <register-use number='0'>
     Flags
@@ -166,7 +166,7 @@ suites.
   </related>
 </swi-definition>
 
-<swi-definition name='JUnitXML_TestSuite' number='58B01'>
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'>
   <entry>
    <register-use number='0'>
     Flags
@@ -323,7 +323,7 @@ suites.
   </related>
 </swi-definition>
 
-<swi-definition name='JUnitXML_TestCase' number='58B02'>
+<swi-definition name='JUnitXML_TestCase' number='5AC02'>
   <entry>
    <register-use number='0'>
     Flags
@@ -478,7 +478,7 @@ suites.
   </related>
 </swi-definition>
 
-<swi-definition name='JUnitXML_Close' number='58B03'>
+<swi-definition name='JUnitXML_Close' number='5AC03'>
   <entry>
    <register-use number='0'>
     Flags
@@ -554,79 +554,79 @@ suites.
 
 <p>
 The JUnitXML module returns error blocks in the standard RISC OS format. The error numbers are
-module-specific with base &amp;840000, and are returned as negative values from SWI calls or via
+module-specific with base &amp;822A00, and are returned as negative values from SWI calls or via
 the carry flag.
 </p>
 
-<error-definition number='840000' name='JUnitXML_InitFailed' description='Module initialisation failed'>
+<error-definition number='822A00' name='JUnitXML_InitFailed' description='Module initialisation failed'>
   <use>
    <p>Module initialisation failed. The state manager could not be initialised.</p>
   </use>
 </error-definition>
 
-<error-definition number='840001' name='JUnitXML_CreateFailed' description='Failed to create handle'>
+<error-definition number='822A01' name='JUnitXML_CreateFailed' description='Failed to create handle'>
   <use>
    <p>Failed to create a new JUnit XML handle. This may be due to memory exhaustion or invalid
    parameters.</p>
   </use>
 </error-definition>
 
-<error-definition number='840002' name='JUnitXML_CreateSuiteFailed' description='Failed to create test suite'>
+<error-definition number='822A02' name='JUnitXML_CreateSuiteFailed' description='Failed to create test suite'>
   <use>
    <p>Failed to create a test suite within the handle. This may occur if the handle is invalid or
    if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='840003' name='JUnitXML_CloseSuiteFailed' description='Failed to close test suite'>
+<error-definition number='822A03' name='JUnitXML_CloseSuiteFailed' description='Failed to close test suite'>
   <use>
    <p>Failed to close a test suite. This may occur if the suite is not properly formed or if
    writing to the output file fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='840004' name='JUnitXML_BadSuiteOp' description='Invalid test suite operation'>
+<error-definition number='822A04' name='JUnitXML_BadSuiteOp' description='Invalid test suite operation'>
   <use>
    <p>An invalid operation code was specified for JUnitXML_TestSuite. The operation must be 0
    (Create), 1 (Close), or 3 (Property).</p>
   </use>
 </error-definition>
 
-<error-definition number='840005' name='JUnitXML_SetPropertyFailed' description='Failed to set suite property'>
+<error-definition number='822A05' name='JUnitXML_SetPropertyFailed' description='Failed to set suite property'>
   <use>
    <p>Failed to set a property on a test suite. This may occur if the property name or value is
    invalid, or if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='840006' name='JUnitXML_CreateCaseFailed' description='Failed to create test case'>
+<error-definition number='822A06' name='JUnitXML_CreateCaseFailed' description='Failed to create test case'>
   <use>
    <p>Failed to create a test case. This may occur if the handle or current suite is invalid, or
    if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='840007' name='JUnitXML_CloseCaseFailed' description='Failed to close test case'>
+<error-definition number='822A07' name='JUnitXML_CloseCaseFailed' description='Failed to close test case'>
   <use>
    <p>Failed to close a test case. This may occur if writing to the output file fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='840008' name='JUnitXML_BadCaseOp' description='Invalid test case operation'>
+<error-definition number='822A08' name='JUnitXML_BadCaseOp' description='Invalid test case operation'>
   <use>
    <p>An invalid operation code was specified for JUnitXML_TestCase. The operation must be 0
    (Create) or 1 (Close).</p>
   </use>
 </error-definition>
 
-<error-definition number='840009' name='JUnitXML_CloseFailed' description='Failed to close handle'>
+<error-definition number='822A09' name='JUnitXML_CloseFailed' description='Failed to close handle'>
   <use>
    <p>Failed to close a JUnit XML handle. This may occur if writing the final XML structure fails
    or if the handle is invalid.</p>
   </use>
 </error-definition>
 
-<error-definition number='84000A' name='JUnitXML_NoHandle' description='No handle available to close'>
+<error-definition number='822A0A' name='JUnitXML_NoHandle' description='No handle available to close'>
   <use>
    <p>No handle is available to close. All handles may have already been closed, or the module
    may not have been initialised.</p>
@@ -764,7 +764,7 @@ int main(void)<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Create a handle with output filename */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_Create_FilenameGiven;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = (int)"TestResults.xml";<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B00, &amp;r, &amp;r); /* JUnitXML_Create */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC00, &amp;r, &amp;r); /* JUnitXML_Create */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) {<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;printf("Failed to create handle: %s\\n", err->errmess);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return 1;<br/>
@@ -776,7 +776,7 @@ int main(void)<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = (int)"suite1";<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[3] = (int)"MyTestSuite";<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B01, &amp;r, &amp;r); /* JUnitXML_TestSuite */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC01, &amp;r, &amp;r); /* JUnitXML_TestSuite */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) {<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;printf("Failed to create suite: %s\\n", err->errmess);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return 1;<br/>
@@ -790,14 +790,14 @@ int main(void)<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[4] = (int)"test_addition";<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[5] = 0;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[6] = 0;<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r); /* JUnitXML_TestCase */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC02, &amp;r, &amp;r); /* JUnitXML_TestCase */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Close test case 1 */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpClose;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 25; /* 25 centiseconds */<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC02, &amp;r, &amp;r);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Create test case 2: failure */<br/>
@@ -808,26 +808,26 @@ int main(void)<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[4] = (int)"test_subtraction";<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[5] = (int)"AssertionError";<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[6] = (int)"Expected 3 but got 4";<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC02, &amp;r, &amp;r);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Close test case 2 */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestCase_OpClose;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 30;<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B02, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC02, &amp;r, &amp;r);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Close the test suite */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = JUnitXML_TestSuite_OpClose | (1 &lt;&lt; 7); /* Duration present */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[1] = handle;<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[2] = 100; /* 100 centiseconds total */<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B01, &amp;r, &amp;r);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC01, &amp;r, &amp;r);<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;/* Close the handle */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;r.r[0] = 0;<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x58B03, &amp;r, &amp;r); /* JUnitXML_Close */<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;err = _kernel_swi(0x5AC03, &amp;r, &amp;r); /* JUnitXML_Close */<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;if (err) goto error;<br/>
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;printf("JUnit XML file created successfully\\n");<br/>
