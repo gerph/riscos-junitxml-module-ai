@@ -1,0 +1,15 @@
+#!/usr/bin/env riscos-amu -f
+# Makefile for JUnitXML Documentation
+#
+
+#
+# Program specific options:
+#
+COMPONENT  = JUnitXML
+
+DOCSRC = prminxml.junitxml/xml
+
+include Documentation
+
+#---------------------------------------------------------------------------
+# Dynamic dependencies:
