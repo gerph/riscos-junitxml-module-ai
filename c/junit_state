@@ -186,6 +186,18 @@ static junit_handle_t *find_handle(int handle_id)
 }
 
 /*
+ * Format a numeric ID into buf if id is NULL, otherwise return id directly.
+ */
+static const char *format_id(const char *id, uint16_t numeric_id, char *buf)
+{
+    if (id != NULL) {
+        return id;
+    }
+    sprintf(buf, "%u", (unsigned int)numeric_id);
+    return buf;
+}
+
+/*
  * Create a new test suite structure
  */
 static junit_testsuite_t *create_testsuite(
@@ -203,8 +215,8 @@ static junit_testsuite_t *create_testsuite(
     }
     
     memset(ts, 0, sizeof(junit_testsuite_t));
-    
-    /* Handle ID - check if it's a small integer */
+    ts->next_case_id = 1;
+
     if (id != NULL) {
         ts->id = junit_strdup(id);
         if (ts->id == NULL) {
@@ -212,7 +224,6 @@ static junit_testsuite_t *create_testsuite(
             return NULL;
         }
     }
-    /* else numeric_id will be set later */
     
     ts->name = junit_strdup(name);
     if (ts->name == NULL) {
@@ -289,8 +300,9 @@ int junit_create(const char *filename, int flags)
     }
     
     memset(h, 0, sizeof(junit_handle_t));
-    
+
     h->handle_id = junit_global.next_handle_id++;
+    h->next_suite_id = 1;
     
     if (flags & 1) {
         /* Filename supplied */
@@ -427,6 +439,10 @@ int junit_suite_create(
         return -1;
     }
 
+    if (id == NULL) {
+        ts->numeric_id = h->next_suite_id++;
+    }
+
     /* Add to suite list */
     ts->next = h->suites;
     h->suites = ts;
@@ -434,12 +450,13 @@ int junit_suite_create(
 
     /* Write the suite header immediately for incremental output */
     if (h->fp != NULL) {
+        char id_buf[8];
         if (junit_xml_write_testsuite_open(
                 h->fp,
                 ts->name,
                 ts->package,
                 ts->hostname,
-                ts->id,
+                format_id(ts->id, ts->numeric_id, id_buf),
                 ts->timestamp,
                 0,  /* tests count - will be updated later */
                 0,  /* failures count */
@@ -613,8 +630,10 @@ int junit_case_create(
             free(tc);
             return -1;
         }
+    } else {
+        tc->numeric_id = ts->next_case_id++;
     }
-    
+
     tc->classname = junit_strdup(classname);
     if (tc->classname == NULL) {
         free_testcase(tc);
@@ -744,6 +763,7 @@ int junit_case_close(int handle_id, int duration_cs)
 
     /* Write the test case to file */
     if (h->fp != NULL) {
+        char id_buf[8];
         if (junit_xml_write_testcase(
                 h->fp,
                 tc->classname,
@@ -751,7 +771,7 @@ int junit_case_close(int handle_id, int duration_cs)
                 tc->time_cs,
                 tc->file,
                 tc->line,
-                tc->id,
+                format_id(tc->id, tc->numeric_id, id_buf),
                 tc->status,
                 tc->failure_type,
                 tc->failure_message,

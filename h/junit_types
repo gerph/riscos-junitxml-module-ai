@@ -99,6 +99,7 @@ typedef struct junit_testsuite {
     struct junit_testsuite *next;/* Next suite */
     int is_open;                 /* Suite is open for adding tests */
     int properties_closed;       /* Properties container has been closed */
+    uint16_t next_case_id;       /* Next auto-generated test case numeric ID */
 } junit_testsuite_t;
 
 /*
@@ -110,6 +111,7 @@ typedef struct junit_handle {
     junit_testsuite_t *suites;   /* List of test suites */
     junit_testsuite_t *current_suite; /* Current suite being built */
     int handle_id;               /* Unique handle identifier */
+    uint16_t next_suite_id;      /* Next auto-generated suite numeric ID */
     struct junit_handle *next;   /* Next handle in list */
 } junit_handle_t;
 

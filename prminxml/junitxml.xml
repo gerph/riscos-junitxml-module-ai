@@ -232,7 +232,7 @@ suites.
     Handle ID
    </register-use>
    <register-use number='2'>
-    ID string pointer (or NULL for auto-generated)
+    ID string pointer (or NULL to assign a numeric ID automatically)
    </register-use>
    <register-use number='3'>
     Name string pointer
@@ -253,7 +253,7 @@ suites.
   <use>
    <p>
    Creates a new test suite within the handle. The suite is identified by the ID string in R2; if
-   R2 is NULL an ID is generated automatically.
+   R2 is NULL a numeric ID is assigned automatically, starting from 1 and incrementing for each suite or test case within the handle or suite respectively.
    </p>
 
    <p>
@@ -506,7 +506,7 @@ suites.
     Handle ID
    </register-use>
    <register-use number='2'>
-    ID string pointer (or NULL for auto-generated)
+    ID string pointer (or NULL to assign a numeric ID automatically)
    </register-use>
    <register-use number='3'>
     Classname string pointer
@@ -530,7 +530,7 @@ suites.
   <use>
    <p>
    Creates a new test case within the currently open suite. The test case is identified by the ID
-   string in R2; if R2 is NULL an ID is generated automatically.
+   string in R2; if R2 is NULL a numeric ID is assigned automatically, starting from 1 and incrementing for each suite or test case within the handle or suite respectively.
    </p>
 
    <p>
