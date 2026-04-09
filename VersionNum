@@ -1,24 +1,24 @@
-/* JUnitXML (0.05) 14:57:23 9/4/2026
+/* JUnitXML (0.06) 00:37:18 10/4/2026
  *
  * This file is automatically maintained by vmanage, do not edit manually.
  *
  */
-#define Module_MajorVersion_CMHG        0.05
+#define Module_MajorVersion_CMHG        0.06
 #define Module_MinorVersion_CMHG        
-#define Module_Date_CMHG                09 Apr 2026
+#define Module_Date_CMHG                10 Apr 2026
 
-#define Module_MajorVersion             "0.05"
-#define Module_Version                  5
+#define Module_MajorVersion             "0.06"
+#define Module_Version                  6
 #define Module_MinorVersion             ""
-#define Module_Date                     "09 Apr 2026"
+#define Module_Date                     "10 Apr 2026"
 
-#define Module_ApplicationDate2         "09-Apr-26"
-#define Module_ApplicationDate4         "09-Apr-2026"
+#define Module_ApplicationDate2         "10-Apr-26"
+#define Module_ApplicationDate4         "10-Apr-2026"
 
 #define Module_ComponentName            "JUnitXML"
 #define Module_ComponentBranch          ""
 #define Module_ComponentPath            ""
 
-#define Module_FullVersion              "0.05"
-#define Module_FullVersionAndDate       "0.05 (09 Apr 2026)"
-#define Module_HelpVersion              "0.05 (09 Apr 2026)"
+#define Module_FullVersion              "0.06"
+#define Module_FullVersionAndDate       "0.06 (10 Apr 2026)"
+#define Module_HelpVersion              "0.06 (10 Apr 2026)"
