@@ -58,27 +58,41 @@ SWI "JUnitXML_TestSuite", flags, handle, ...
 - Bits 0-3: Operation
   - 0: Create new test suite
   - 1: Close test suite
-  - 2: Update test suite (not implemented)
+  - 2: Update test suite metadata
   - 3: Set property
-- Bit 4: Package supplied
-- Bits 5-6: Timestamp format
+- Bit 4 (Create): Package supplied in R4
+- Bits 5-6 (Create): Timestamp format
   - 0: Use current time
-  - 1: RISC OS time quintuple (pointer)
-  - 2: Unix epoch time
-  - 3: ISO 8601 string (pointer)
-- Bit 7: Duration present (centiseconds)
+  - 1: RISC OS time quintuple (pointer in R5)
+  - 2: Unix epoch time (value in R5)
+  - 3: ISO 8601 string (pointer in R5)
+- Bit 7 (Close): Duration present in R2 (centiseconds)
 
 **Create operation (op=0):**
 ```
-R2 = id (string, numeric string, or 0 for auto)
-R3 = name (suite name)
-R4 = package (if bit 4 set)
-R5 = timestamp (format per bits 5-6)
+R2 = id string, or 0 for auto-assigned numeric ID
+R3 = suite name
+R4 = package name (if bit 4 set)
+R5 = timestamp (format per bits 5-6; omit if using current time)
 ```
 
 **Close operation (op=1):**
 ```
-R2 = duration (if bit 7 set, in centiseconds)
+R2 = duration in centiseconds (if bit 7 set)
+```
+
+**Update operation (op=2):**
+
+Updates hostname, name, or package on the open suite. Must be called before the first property or test case is added.
+
+- Bit 4: Hostname supplied in R2
+- Bit 5: New suite name supplied in R3
+- Bit 6: New package name supplied in R4
+
+```
+R2 = hostname string (if bit 4 set)
+R3 = new suite name (if bit 5 set)
+R4 = new package name (if bit 6 set)
 ```
 
 **Set property operation (op=3):**
@@ -89,17 +103,20 @@ R3 = property value
 
 **Example:**
 ```basic
-REM Create a test suite
+REM Create a test suite with auto ID and current timestamp
 SYS "JUnitXML_TestSuite", 0, jx%, 0, "MyTestSuite"
 
-REM Create with package
-SYS "JUnitXML_TestSuite", 16, jx%, 0, "MySuite", "com.example.tests"
+REM Create with package (bit 4 set)
+SYS "JUnitXML_TestSuite", 1<<4, jx%, 0, "MySuite", "com.example.tests"
+
+REM Update hostname before adding any tests
+SYS "JUnitXML_TestSuite", 2 OR (1<<4), jx%, "my-machine"
 
 REM Set a property
 SYS "JUnitXML_TestSuite", 3, jx%, "build.number", "12345"
 
-REM Close the suite
-SYS "JUnitXML_TestSuite", 1, jx%
+REM Close the suite with duration (100 cs = 1 second)
+SYS "JUnitXML_TestSuite", 1 OR (1<<7), jx%, 100
 ```
 
 ### JUnitXML_TestCase
@@ -209,8 +226,8 @@ JUnitXML_Skipped = (4<<4)
 REM Create output file
 SYS "JUnitXML_Create", JUnitXML_Create_FilenameGiven, "test-results.xml" TO jx%
 
-REM Create a test suite
-SYS "JUnitXML_TestSuite", 0, jx%, 0, "CalculatorTests", "com.example.calc"
+REM Create a test suite (bit 4 set to supply package name)
+SYS "JUnitXML_TestSuite", 1<<4, jx%, 0, "CalculatorTests", "com.example.calc"
 
 REM Set suite properties
 SYS "JUnitXML_TestSuite", 3, jx%, "build.number", "42"
@@ -250,25 +267,27 @@ The module produces JUnit XML format compatible with CI/CD systems:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="CalculatorTests" package="com.example.calc" tests="5" failures="1" errors="1" skipped="1" time="0.150">
+  <testsuite name="CalculatorTests" package="com.example.calc" id="1" timestamp="2026-01-01T00:00:00Z">
     <properties>
       <property name="build.number" value="42"/>
       <property name="os.version" value="3.11"/>
     </properties>
-    <testcase classname="Calculator" name="testAddition" time="0.010"/>
-    <testcase classname="Calculator" name="testSubtraction" time="0.010"/>
-    <testcase classname="Calculator" name="testDivision" time="0.005">
+    <testcase classname="Calculator" name="testAddition" id="1" time="0.010"/>
+    <testcase classname="Calculator" name="testSubtraction" id="2" time="0.010"/>
+    <testcase classname="Calculator" name="testDivision" id="3" time="0.005">
       <failure type="DivisionByZero" message="Cannot divide by zero"/>
     </testcase>
-    <testcase classname="Calculator" name="testOverflow" time="0.005">
+    <testcase classname="Calculator" name="testOverflow" id="4" time="0.005">
       <error type="OverflowError" message="Result too large"/>
     </testcase>
-    <testcase classname="Calculator" name="testMultiplication" time="0.000">
+    <testcase classname="Calculator" name="testMultiplication" id="5" time="0.000">
       <skipped/>
     </testcase>
   </testsuite>
 </testsuites>
 ```
+
+Note: when output is written incrementally (the normal case when a filename is given at create time), the `<testsuite>` opening tag does not include test count attributes (`tests`, `failures`, `errors`, `skipped`) since those totals are not yet known. Test case IDs are auto-assigned sequentially when `0` is passed for the ID.
 
 ## Architecture
 
