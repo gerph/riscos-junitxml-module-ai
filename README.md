@@ -12,6 +12,7 @@ A RISC OS module for generating JUnit XML test output files. This module provide
 - **Output capture** - system-out and system-err elements for test output
 - **Incremental writing** - XML is written as tests complete (not buffered)
 - **Flexible timestamps** - Support for current time, RISC OS time, Unix epoch, or ISO 8601
+- **Result retrieval** - Query aggregate pass, failure, error, and skip counts from a handle
 
 ## Building
 
@@ -165,6 +166,35 @@ SWI "JUnitXML_Close", flags, filename
 SYS "JUnitXML_Close", 0
 ```
 
+### JUnitXML_Result
+
+Retrieve aggregate result counts for all test suites within a handle.
+
+```
+SWI "JUnitXML_Result", flags, handle TO tests, passes, failures, errors, skips
+```
+
+**Parameters:**
+- `flags` - Reserved, must be zero
+- `handle` - Handle number
+
+**Returns:**
+- `tests` - Total number of test cases recorded
+- `passes` - Number of passing tests
+- `failures` - Number of tests that reported failure
+- `errors` - Number of tests that reported an error
+- `skips` - Number of skipped tests
+
+This SWI may be called at any time while the handle is open. The counts are summed across all
+suites, including those that are still open.
+
+**Example:**
+```basic
+SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%
+PRINT "Tests: "; tests%; " Passes: "; passes%; " Failures: "; failures%
+IF failures% + errors% > 0 THEN PRINT "FAILED" ELSE PRINT "PASSED"
+```
+
 ## Complete Example (BBC BASIC)
 
 ```basic
@@ -201,6 +231,11 @@ SYS "JUnitXML_TestCase", JUnitXML_Skipped, jx%, 0, "Calculator", "testMultiplica
 
 REM Close the suite
 SYS "JUnitXML_TestSuite", 1, jx%
+
+REM Retrieve result counts
+SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%
+PRINT "Tests: "; tests%; " Passes: "; passes%; " Failures: "; failures%; " Errors: "; errors%; " Skipped: "; skips%
+IF failures% + errors% > 0 THEN PRINT "FAILED" ELSE PRINT "PASSED"
 
 REM Close the file
 SYS "JUnitXML_Close", 0

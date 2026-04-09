@@ -15,8 +15,8 @@ and other software development utilities.
 
 <p>
 The module implements a SWI-based interface for creating test suites, recording test cases with
-their outcomes (success, failure, error, or skipped), and generating XML output conforming to the
-JUnit XML schema.
+their outcomes (success, failure, error, or skipped), generating XML output conforming to the
+JUnit XML schema, and retrieving aggregate result counts.
 </p>
 
 <p>
@@ -31,6 +31,7 @@ Key features include:
  <item><p>Custom properties for test suites</p></item>
  <item><p>Detailed failure and error reporting with type and message</p></item>
  <item><p>Duration tracking for test suites and individual test cases</p></item>
+ <item><p>Result retrieval for obtaining aggregate pass, failure, error, and skip counts</p></item>
 </list>
 </p>
 
@@ -163,6 +164,7 @@ suites.
   <related>
    <reference type='swi' name='JUnitXML_Close'/>
    <reference type='swi' name='JUnitXML_TestSuite'/>
+   <reference type='swi' name='JUnitXML_Result'/>
   </related>
 </swi-definition>
 
@@ -244,14 +246,14 @@ suites.
     <item><p>R2 = ID string pointer (or NULL for auto-generated)</p></item>
     <item><p>R3 = Name string pointer</p></item>
     <item><p>R4 = Package string pointer (if bit 4 set, else ignored)</p></item>
-    <item><p>R5 = Timestamp (format depends on bits 5-6):</p>
-     <list type='unordered'>
-      <item><p>Format 0 (JUNIT_TS_CURRENT): Ignored, uses current time</p></item>
-      <item><p>Format 1 (JUNIT_TS_RISCOS): Pointer to 5-byte RISC OS time quin</p></item>
-      <item><p>Format 2 (JUNIT_TS_UNIX): Unix epoch time (seconds)</p></item>
-      <item><p>Format 3 (JUNIT_TS_ISO8601): Pointer to ISO 8601 string</p></item>
-     </list>
-    </item>
+    <item><p>R5 = Timestamp (format depends on bits 5-6):
+     <value-table head-number="Value" head-value="Meaning">
+      <value number="0">JUNIT_TS_CURRENT — ignored, uses current system time</value>
+      <value number="1">JUNIT_TS_RISCOS — pointer to 5-byte RISC OS time quin (centiseconds since 1900-01-01)</value>
+      <value number="2">JUNIT_TS_UNIX — Unix epoch time (seconds since 1970-01-01)</value>
+      <value number="3">JUNIT_TS_ISO8601 — pointer to a pre-formatted ISO 8601 string</value>
+     </value-table>
+    </p></item>
    </list>
    </p>
 
@@ -392,17 +394,17 @@ suites.
    </p>
 
    <p>
-   Status codes:
+   Status codes (bits 4-7):
    </p>
 
    <p>
-   <list type='unordered'>
-    <item><p>0: JUNIT_STATUS_NONE - No status specified</p></item>
-    <item><p>1: JUNIT_STATUS_SUCCESS - Test passed</p></item>
-    <item><p>2: JUNIT_STATUS_FAILURE - Test failed (assertion failure)</p></item>
-    <item><p>3: JUNIT_STATUS_ERROR - Test errored (unexpected error)</p></item>
-    <item><p>4: JUNIT_STATUS_SKIPPED - Test was skipped</p></item>
-   </list>
+   <value-table head-number="Value" head-value="Meaning">
+    <value number="0">JUNIT_STATUS_NONE — no status specified</value>
+    <value number="1">JUNIT_STATUS_SUCCESS — test passed</value>
+    <value number="2">JUNIT_STATUS_FAILURE — test failed (assertion failure)</value>
+    <value number="3">JUNIT_STATUS_ERROR — test errored (unexpected error)</value>
+    <value number="4">JUNIT_STATUS_SKIPPED — test was skipped</value>
+   </value-table>
    </p>
 
    <p>
@@ -545,6 +547,7 @@ suites.
   </example>
   <related>
    <reference type='swi' name='JUnitXML_Create'/>
+   <reference type='swi' name='JUnitXML_Result'/>
   </related>
 </swi-definition>
 
@@ -589,7 +592,27 @@ suites.
    </p>
 
    <p>
-   The number of passes is derived as the total test count minus failures, errors, and skips.
+   R0 (flags) must be zero on entry; all flag bits are reserved for future use.
+   </p>
+
+   <p>
+   This SWI may be called at any point while the handle is valid — before or after closing
+   individual suites. It must not be called after JUnitXML_Close has been used to close the
+   handle, as the handle will no longer be valid.
+   </p>
+
+   <p>
+   The returned counts are:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R0: Total number of test cases recorded across all suites</p></item>
+    <item><p>R1: Number of passing tests (total minus failures, errors, and skips)</p></item>
+    <item><p>R2: Number of tests that reported a failure status</p></item>
+    <item><p>R3: Number of tests that reported an error status</p></item>
+    <item><p>R4: Number of tests that were skipped</p></item>
+   </list>
    </p>
   </use>
   <example>
@@ -599,7 +622,10 @@ suites.
     SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%<br/>
     PRINT "Tests: "; tests%<br/>
     PRINT "Passes: "; passes%<br/>
-    PRINT "Failures: "; failures%
+    PRINT "Failures: "; failures%<br/>
+    PRINT "Errors: "; errors%<br/>
+    PRINT "Skipped: "; skips%<br/>
+    IF failures% + errors% &gt; 0 THEN PRINT "FAILED" ELSE PRINT "PASSED"
    </extended-example>
    </p>
   </example>
