@@ -193,9 +193,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -250,9 +248,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -328,9 +324,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -380,11 +374,7 @@ suites.
     Handle ID
    </register-use>
   </entry>
-  <exit>
-   <processor-flag name='C'>
-    Always set; this reason code is not implemented
-   </processor-flag>
-  </exit>
+
   <use>
    <p>
    This reason code is reserved for future use. It is not currently implemented; calling it
@@ -427,9 +417,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -479,9 +467,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -539,9 +525,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -631,9 +615,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -678,11 +660,7 @@ suites.
     Handle ID
    </register-use>
   </entry>
-  <exit>
-   <processor-flag name='C'>
-    Always set; this reason code is not implemented
-   </processor-flag>
-  </exit>
+
   <use>
    <p>
    This reason code is reserved for future use. It is not currently implemented; calling it
@@ -716,9 +694,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -796,9 +772,7 @@ suites.
    <register-use number='4'>
     Number of skips
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
