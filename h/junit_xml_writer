@@ -35,11 +35,11 @@ int junit_xml_write_footer(FILE *fp);
  *   hostname    - hostname (can be NULL)
  *   id          - suite ID (can be NULL)
  *   timestamp   - ISO 8601 timestamp string
- *   tests       - number of tests
- *   failures    - number of failures
- *   errors      - number of errors
- *   skipped     - number of skipped tests
- *   time_cs     - time taken in centiseconds
+ *   tests       - number of tests (-1 to omit attribute)
+ *   failures    - number of failures (-1 to omit attribute)
+ *   errors      - number of errors (-1 to omit attribute)
+ *   skipped     - number of skipped tests (-1 to omit attribute)
+ *   time_cs     - time taken in centiseconds (-1 to omit attribute)
  * Returns: 0 on success, non-zero on error
  */
 int junit_xml_write_testsuite_open(

@@ -151,28 +151,38 @@ int junit_xml_write_testsuite_open(
         return -1;
     }
 
-    /* Counts */
-    if (fprintf(fp, " tests=\"%d\"", tests) < 0) {
-        return -1;
-    }
-    
-    if (fprintf(fp, " failures=\"%d\"", failures) < 0) {
-        return -1;
-    }
-    
-    if (fprintf(fp, " errors=\"%d\"", errors) < 0) {
-        return -1;
-    }
-    
-    if (fprintf(fp, " skipped=\"%d\"", skipped) < 0) {
-        return -1;
+    /* Counts - omitted when negative (streaming mode: values not yet known) */
+    if (tests >= 0) {
+        if (fprintf(fp, " tests=\"%d\"", tests) < 0) {
+            return -1;
+        }
     }
 
-    /* Time taken - convert centiseconds to seconds with 3 decimal places */
-    seconds = time_cs / 100;
-    cs = time_cs % 100;
-    if (fprintf(fp, " time=\"%d.%02d\"", seconds, cs) < 0) {
-        return -1;
+    if (failures >= 0) {
+        if (fprintf(fp, " failures=\"%d\"", failures) < 0) {
+            return -1;
+        }
+    }
+
+    if (errors >= 0) {
+        if (fprintf(fp, " errors=\"%d\"", errors) < 0) {
+            return -1;
+        }
+    }
+
+    if (skipped >= 0) {
+        if (fprintf(fp, " skipped=\"%d\"", skipped) < 0) {
+            return -1;
+        }
+    }
+
+    /* Time taken - convert centiseconds to seconds; omitted when negative */
+    if (time_cs >= 0) {
+        seconds = time_cs / 100;
+        cs = time_cs % 100;
+        if (fprintf(fp, " time=\"%d.%02d\"", seconds, cs) < 0) {
+            return -1;
+        }
     }
 
     if (fprintf(fp, ">\n") < 0) {

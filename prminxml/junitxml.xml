@@ -15,8 +15,8 @@ and other software development utilities.
 
 <p>
 The module implements a SWI-based interface for creating test suites, recording test cases with
-their outcomes (success, failure, error, or skipped), and generating XML output conforming to the
-JUnit XML schema.
+their outcomes (success, failure, error, or skipped), generating XML output conforming to the
+JUnit XML schema, and retrieving aggregate result counts.
 </p>
 
 <p>
@@ -31,6 +31,7 @@ Key features include:
  <item><p>Custom properties for test suites</p></item>
  <item><p>Detailed failure and error reporting with type and message</p></item>
  <item><p>Duration tracking for test suites and individual test cases</p></item>
+ <item><p>Result retrieval for obtaining aggregate pass, failure, error, and skip counts</p></item>
 </list>
 </p>
 
@@ -163,16 +164,58 @@ suites.
   <related>
    <reference type='swi' name='JUnitXML_Close'/>
    <reference type='swi' name='JUnitXML_TestSuite'/>
+   <reference type='swi' name='JUnitXML_Result'/>
   </related>
 </swi-definition>
 
-<swi-definition name='JUnitXML_TestSuite' number='5AC01'>
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'
+                description='Performs operations on test suites'>
+  <entry>
+   <register-use number='0'>
+    <p>Reason code:</p>
+    <p>
+    <value-table head-number="Reason" head-value="Action">
+     <value number="0"><reference type='swi' name='JUnitXML_TestSuite' reason="0" use-description='yes'/></value>
+     <value number="1"><reference type='swi' name='JUnitXML_TestSuite' reason="1" use-description='yes'/></value>
+     <value number="2"><reference type='swi' name='JUnitXML_TestSuite' reason="2" use-description='yes'/></value>
+     <value number="3"><reference type='swi' name='JUnitXML_TestSuite' reason="3" use-description='yes'/></value>
+    </value-table>
+    </p>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2-5'>
+    Dependent on reason code
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+
+  </exit>
+  <use>
+   <p>
+   JUnitXML_TestSuite performs operations on test suites within a given handle. The operation is
+   determined by bits 0-3 of the flags word in R0. R1 always contains the handle ID.
+   </p>
+  </use>
+  <related>
+   <reference type='swi' name='JUnitXML_Create'/>
+   <reference type='swi' name='JUnitXML_TestCase'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'
+                reason='0' reasonname='Create'
+                description='Creates a new test suite within the handle'>
   <entry>
    <register-use number='0'>
     Flags
     <bitfield-table>
      <bit number='0-3' name='Operation'>
-      Operation code: 0=Create, 1=Close, 2=Update, 3=Property
+      0 (Create)
      </bit>
      <bit number='4' name='PackageSupplied'>
       If set, R4 points to a package name
@@ -180,8 +223,90 @@ suites.
      <bit number='5-6' name='TSFormat'>
       Timestamp format: 0=Current, 1=RISC OS, 2=Unix, 3=ISO 8601
      </bit>
+     <bit number='7-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    ID string pointer (or NULL to assign a numeric ID automatically)
+   </register-use>
+   <register-use number='3'>
+    Name string pointer
+   </register-use>
+   <register-use number='4'>
+    Package string pointer (if bit 4 of R0 set, else ignored)
+   </register-use>
+   <register-use number='5'>
+    Timestamp value (interpretation depends on bits 5-6 of R0)
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+
+  </exit>
+  <use>
+   <p>
+   Creates a new test suite within the handle. The suite is identified by the ID string in R2; if
+   R2 is NULL a numeric ID is assigned automatically, starting from 1 and incrementing for each suite or test case within the handle or suite respectively.
+   </p>
+
+   <p>
+   If bit 4 (PackageSupplied) is set, R4 must point to a null-terminated package name string which
+   will be recorded in the XML output.
+   </p>
+
+   <p>
+   The timestamp format for the suite start time is selected by bits 5-6 (TSFormat) of R0:
+   </p>
+
+   <p>
+   <value-table head-number="Value" head-value="Meaning">
+    <value number="0">JUNIT_TS_CURRENT — R5 ignored, uses current system time</value>
+    <value number="1">JUNIT_TS_RISCOS — R5 points to a 5-byte RISC OS time quin (centiseconds since 1900-01-01)</value>
+    <value number="2">JUNIT_TS_UNIX — R5 contains Unix epoch time (seconds since 1970-01-01)</value>
+    <value number="3">JUNIT_TS_ISO8601 — R5 points to a pre-formatted ISO 8601 string</value>
+   </value-table>
+   </p>
+  </use>
+  <example>
+   <p>Creating a test suite with current timestamp:</p>
+   <p>
+   <extended-example type='c'>
+    MOV R0, #0          ; reason=Create, current time<br/>
+    MOV R1, handle      ; handle ID<br/>
+    LDR R2, =suite_id   ; suite ID string<br/>
+    LDR R3, =suite_name ; suite name string<br/>
+    SWI "JUnitXML_TestSuite"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='1'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='3'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'
+                reason='1' reasonname='Close'
+                description='Closes the current test suite, writing final statistics'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      1 (Close)
+     </bit>
+     <bit number='4-6' state='reserved'>
+      Reserved
+     </bit>
      <bit number='7' name='DurationPresent'>
-      If set, duration is supplied
+      If set, R2 contains the suite duration in centiseconds
      </bit>
      <bit number='8-31' state='reserved'>
       Reserved
@@ -192,150 +317,229 @@ suites.
     Handle ID
    </register-use>
    <register-use number='2'>
-    Operation-specific parameter 1
-   </register-use>
-   <register-use number='3'>
-    Operation-specific parameter 2
-   </register-use>
-   <register-use number='4'>
-    Operation-specific parameter 3
-   </register-use>
-   <register-use number='5'>
-    Operation-specific parameter 4
+    Duration in centiseconds (if bit 7 of R0 set, else ignored)
    </register-use>
   </entry>
   <exit>
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
-   JUnitXML_TestSuite performs operations on test suites. The operation is determined by bits 0-3
-   of the flags word.
+   Closes the current open test suite, calculating and writing final aggregate statistics to the
+   output.
    </p>
 
    <p>
-   <strong>Operation Create (0):</strong> Creates a new test suite within the handle.
-   </p>
-
-   <p>
-   Flags for Create:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>Bits 0-3: Operation code (0 = Create)</p></item>
-    <item><p>Bit 4 (JUnitXML_TestSuite_PackageSupplied): If set, R4 points to a package name</p></item>
-    <item><p>Bits 5-6 (JUnitXML_TestSuite_TSMask): Timestamp format</p></item>
-    <item><p>Bit 7 (JUnitXML_TestSuite_DurationPresent): Reserved for Create</p></item>
-   </list>
-   </p>
-
-   <p>
-   Parameters for Create:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>R2 = ID string pointer (or NULL for auto-generated)</p></item>
-    <item><p>R3 = Name string pointer</p></item>
-    <item><p>R4 = Package string pointer (if bit 4 set, else ignored)</p></item>
-    <item><p>R5 = Timestamp (format depends on bits 5-6):</p>
-     <list type='unordered'>
-      <item><p>Format 0 (JUNIT_TS_CURRENT): Ignored, uses current time</p></item>
-      <item><p>Format 1 (JUNIT_TS_RISCOS): Pointer to 5-byte RISC OS time quin</p></item>
-      <item><p>Format 2 (JUNIT_TS_UNIX): Unix epoch time (seconds)</p></item>
-      <item><p>Format 3 (JUNIT_TS_ISO8601): Pointer to ISO 8601 string</p></item>
-     </list>
-    </item>
-   </list>
-   </p>
-
-   <p>
-   <strong>Operation Close (1):</strong> Closes the current test suite, writing final statistics.
-   </p>
-
-   <p>
-   Flags for Close:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>Bits 0-3: Operation code (1 = Close)</p></item>
-    <item><p>Bit 7 (JUnitXML_TestSuite_DurationPresent): If set, duration is supplied</p></item>
-   </list>
-   </p>
-
-   <p>
-   Parameters for Close:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>R2 = Duration in centiseconds (if bit 7 set, else ignored)</p></item>
-   </list>
-   </p>
-
-   <p>
-   <strong>Operation Property (3):</strong> Sets a property on the current test suite.
-   </p>
-
-   <p>
-   Parameters for Property:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>R2 = Property name string pointer</p></item>
-    <item><p>R3 = Property value string pointer</p></item>
-   </list>
+   If bit 7 (DurationPresent) is set, R2 gives the elapsed duration of the suite in centiseconds,
+   which is recorded in the XML output. If clear, the duration is omitted.
    </p>
   </use>
   <example>
-   <p>Creating a test suite with current timestamp:</p>
-   <p>
-   <extended-example type='c'>
-    MOV R0, #0          ; flags = Create, current time<br/>
-    MOV R1, handle      ; handle ID<br/>
-    LDR R2, =suite_id   ; suite ID string<br/>
-    LDR R3, =suite_name ; suite name string<br/>
-    SWI "JUnitXML_TestSuite"
-   </extended-example>
-   </p>
-
    <p>Closing a test suite with duration:</p>
    <p>
    <extended-example type='c'>
-    MOV R0, #1 ORR (128) ; flags = Close, duration present<br/>
-    MOV R1, handle       ; handle ID<br/>
-    MOV R2, #100         ; duration = 100 centiseconds<br/>
+    MOV R0, #(1 :OR: (1&lt;&lt;7)) ; reason=Close, duration present<br/>
+    MOV R1, handle               ; handle ID<br/>
+    MOV R2, #100                 ; duration = 100 centiseconds<br/>
     SWI "JUnitXML_TestSuite"
    </extended-example>
    </p>
   </example>
   <related>
-   <reference type='swi' name='JUnitXML_Create'/>
-   <reference type='swi' name='JUnitXML_TestCase'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='0'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='2'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='3'/>
   </related>
 </swi-definition>
 
-<swi-definition name='JUnitXML_TestCase' number='5AC02'>
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'
+                reason='2' reasonname='Update'
+                description='Updates metadata on the current open test suite'>
   <entry>
    <register-use number='0'>
     Flags
     <bitfield-table>
      <bit number='0-3' name='Operation'>
-      Operation code: 0=Create, 1=Close, 2=Update
+      2 (Update)
+     </bit>
+     <bit number='4' name='JUnitXML_TestSuite_HostnameSupplied'>
+      If set, R2 points to a hostname string
+     </bit>
+     <bit number='5' name='JUnitXML_TestSuite_UpdateName'>
+      If set, R3 points to a new suite name string
+     </bit>
+     <bit number='6' name='JUnitXML_TestSuite_UpdatePackage'>
+      If set, R4 points to a new package name string
+     </bit>
+     <bit number='7-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    Hostname string pointer (if bit 4 of R0 set), otherwise ignored
+   </register-use>
+   <register-use number='3'>
+    New suite name string pointer (if bit 5 of R0 set), otherwise ignored
+   </register-use>
+   <register-use number='4'>
+    New package name string pointer (if bit 6 of R0 set), otherwise ignored
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+  </exit>
+
+  <use>
+   <p>
+   Updates metadata on the currently open test suite for the given handle. This call
+   allows the hostname, suite name, and package name to be set or changed after the suite
+   has been created with reason 0.
+   </p>
+
+   <p>
+   Only the fields for which the corresponding flag bit is set are updated; fields for
+   which the bit is clear are left unchanged.
+   </p>
+
+   <p>
+   This call must be made before the first property or test case is added to the suite,
+   since the suite header is written to the XML output lazily just before those items.
+   Calling Update after a property or test case has been added returns
+   <reference type='error' name='JUnitXML_BadSuiteOp'/>.
+   </p>
+  </use>
+  <example>
+   <p>Setting the hostname on the current suite:</p>
+   <p>
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestSuite", 2 + (1&lt;&lt;4), jx%, "my-machine"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='0'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='1'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='3'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestSuite' number='5AC01'
+                reason='3' reasonname='Property'
+                description='Sets a property on the current test suite'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      3 (Property)
+     </bit>
+     <bit number='4-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    Property name string pointer
+   </register-use>
+   <register-use number='3'>
+    Property value string pointer
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+
+  </exit>
+  <use>
+   <p>
+   Sets a named property on the currently open test suite. Properties are written to the XML output
+   as child elements of the testsuite element.
+   </p>
+
+   <p>
+   Both the property name (R2) and property value (R3) must be non-NULL null-terminated strings.
+   </p>
+  </use>
+  <example>
+   <p>Setting a property on a test suite:</p>
+   <p>
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestSuite", 3, jx%, "host", "RISC OS"
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='0'/>
+   <reference type='swi' name='JUnitXML_TestSuite' reason='1'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestCase' number='5AC02'
+                description='Performs operations on test cases'>
+  <entry>
+   <register-use number='0'>
+    <p>Reason code:</p>
+    <p>
+    <value-table head-number="Reason" head-value="Action">
+     <value number="0"><reference type='swi' name='JUnitXML_TestCase' reason="0" use-description='yes'/></value>
+     <value number="1"><reference type='swi' name='JUnitXML_TestCase' reason="1" use-description='yes'/></value>
+     <value number="2"><reference type='swi' name='JUnitXML_TestCase' reason="2" use-description='yes'/></value>
+    </value-table>
+    </p>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2-6'>
+    Dependent on reason code
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+
+  </exit>
+  <use>
+   <p>
+   JUnitXML_TestCase performs operations on test cases within the current suite. The operation is
+   determined by bits 0-3 of the flags word in R0. R1 always contains the handle ID.
+   </p>
+  </use>
+  <related>
+   <reference type='swi' name='JUnitXML_TestSuite'/>
+   <reference type='swi' name='JUnitXML_Close'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestCase' number='5AC02'
+                reason='0' reasonname='Create'
+                description='Creates a new test case within the current suite'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      0 (Create)
      </bit>
      <bit number='4-7' name='Status'>
-      Test status: 0=None, 1=Success, 2=Failure, 3=Error, 4=Skipped
+      Test status code (see below)
      </bit>
      <bit number='8' name='ErrorBlock'>
-      If set, failure_type is a RISC OS error block
+      If set, R5 points to a RISC OS error block rather than a string
      </bit>
      <bit number='9-31' state='reserved'>
       Reserved
@@ -346,101 +550,62 @@ suites.
     Handle ID
    </register-use>
    <register-use number='2'>
-    Operation-specific parameter 1
+    ID string pointer (or NULL to assign a numeric ID automatically)
    </register-use>
    <register-use number='3'>
-    Operation-specific parameter 2
+    Classname string pointer
    </register-use>
    <register-use number='4'>
-    Operation-specific parameter 3
+    Test name string pointer
    </register-use>
    <register-use number='5'>
-    Operation-specific parameter 4
+    Failure type string pointer, or RISC OS error block pointer if bit 8 set (or NULL)
    </register-use>
    <register-use number='6'>
-    Operation-specific parameter 5
+    Failure message string pointer (or NULL)
    </register-use>
   </entry>
   <exit>
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
-   JUnitXML_TestCase performs operations on test cases. The operation is determined by bits 0-3
-   of the flags word.
+   Creates a new test case within the currently open suite. The test case is identified by the ID
+   string in R2; if R2 is NULL a numeric ID is assigned automatically, starting from 1 and incrementing for each suite or test case within the handle or suite respectively.
    </p>
 
    <p>
-   <strong>Operation Create (0):</strong> Creates a new test case within the current suite.
+   The test status is given by bits 4-7 (Status) of R0:
    </p>
 
    <p>
-   Flags for Create:
+   <value-table head-number="Value" head-value="Meaning">
+    <value number="0">JUNIT_STATUS_NONE — no status specified</value>
+    <value number="1">JUNIT_STATUS_SUCCESS — test passed</value>
+    <value number="2">JUNIT_STATUS_FAILURE — test failed (assertion failure)</value>
+    <value number="3">JUNIT_STATUS_ERROR — test errored (unexpected error)</value>
+    <value number="4">JUNIT_STATUS_SKIPPED — test was skipped</value>
+   </value-table>
    </p>
 
    <p>
-   <list type='unordered'>
-    <item><p>Bits 0-3: Operation code (0 = Create)</p></item>
-    <item><p>Bits 4-7 (JUnitXML_TestCase_StatusMask): Test status code</p></item>
-    <item><p>Bit 8 (JUnitXML_TestCase_ErrorBlock): If set, failure_type is a RISC OS error block</p></item>
-   </list>
-   </p>
-
-   <p>
-   Status codes:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>0: JUNIT_STATUS_NONE - No status specified</p></item>
-    <item><p>1: JUNIT_STATUS_SUCCESS - Test passed</p></item>
-    <item><p>2: JUNIT_STATUS_FAILURE - Test failed (assertion failure)</p></item>
-    <item><p>3: JUNIT_STATUS_ERROR - Test errored (unexpected error)</p></item>
-    <item><p>4: JUNIT_STATUS_SKIPPED - Test was skipped</p></item>
-   </list>
-   </p>
-
-   <p>
-   Parameters for Create:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>R2 = ID string pointer (or NULL for auto-generated)</p></item>
-    <item><p>R3 = Classname string pointer</p></item>
-    <item><p>R4 = Test name string pointer</p></item>
-    <item><p>R5 = Failure type string pointer (or NULL)</p></item>
-    <item><p>R6 = Failure message string pointer (or NULL)</p></item>
-   </list>
-   </p>
-
-   <p>
-   <strong>Operation Close (1):</strong> Closes the current test case, writing it to the output.
-   </p>
-
-   <p>
-   Parameters for Close:
-   </p>
-
-   <p>
-   <list type='unordered'>
-    <item><p>R2 = Duration in centiseconds</p></item>
-   </list>
+   For failure and error statuses, R5 and R6 provide optional failure details. If bit 8
+   (ErrorBlock) is set in R0, R5 points to a RISC OS error block from which the error number and
+   message are extracted; otherwise R5 points to a plain null-terminated string giving the failure
+   type. R6 points to a null-terminated string giving an optional failure message.
    </p>
   </use>
   <example>
    <p>Creating a successful test case:</p>
    <p>
    <extended-example type='c'>
-    MOV R0, #16         ; flags = Create, status = SUCCESS (1 &lt;&lt; 4)<br/>
+    MOV R0, #16         ; reason=Create, status=SUCCESS (1&lt;&lt;4)<br/>
     MOV R1, handle      ; handle ID<br/>
     LDR R2, =test_id    ; test ID string<br/>
-    LDR R3, =classname  ; class name string<br/>
+    LDR R3, =classname  ; classname string<br/>
     LDR R4, =test_name  ; test name string<br/>
     MOV R5, #0          ; no failure type<br/>
     MOV R6, #0          ; no failure message<br/>
@@ -451,21 +616,62 @@ suites.
    <p>Creating a failed test case:</p>
    <p>
    <extended-example type='c'>
-    MOV R0, #32         ; flags = Create, status = FAILURE (2 &lt;&lt; 4)<br/>
+    MOV R0, #32         ; reason=Create, status=FAILURE (2&lt;&lt;4)<br/>
     MOV R1, handle      ; handle ID<br/>
     LDR R2, =test_id    ; test ID string<br/>
-    LDR R3, =classname  ; class name string<br/>
+    LDR R3, =classname  ; classname string<br/>
     LDR R4, =test_name  ; test name string<br/>
     LDR R5, =fail_type  ; "AssertionError"<br/>
     LDR R6, =fail_msg   ; "Expected 5 but got 3"<br/>
     SWI "JUnitXML_TestCase"
    </extended-example>
    </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_TestCase' reason='1'/>
+   <reference type='swi' name='JUnitXML_TestSuite'/>
+  </related>
+</swi-definition>
 
+<swi-definition name='JUnitXML_TestCase' number='5AC02'
+                reason='1' reasonname='Close'
+                description='Closes the current test case, writing it to the output'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      1 (Close)
+     </bit>
+     <bit number='4-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+   <register-use number='2'>
+    Duration in centiseconds
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+
+  </exit>
+  <use>
+   <p>
+   Closes the current test case and writes it to the XML output. R2 gives the elapsed duration of
+   the test case in centiseconds.
+   </p>
+  </use>
+  <example>
    <p>Closing a test case with duration:</p>
    <p>
    <extended-example type='c'>
-    MOV R0, #1          ; flags = Close<br/>
+    MOV R0, #1          ; reason=Close<br/>
     MOV R1, handle      ; handle ID<br/>
     MOV R2, #50         ; duration = 50 centiseconds<br/>
     SWI "JUnitXML_TestCase"
@@ -473,8 +679,41 @@ suites.
    </p>
   </example>
   <related>
+   <reference type='swi' name='JUnitXML_TestCase' reason='0'/>
+   <reference type='swi' name='JUnitXML_TestCase' reason='2'/>
    <reference type='swi' name='JUnitXML_TestSuite'/>
-   <reference type='swi' name='JUnitXML_Close'/>
+  </related>
+</swi-definition>
+
+<swi-definition name='JUnitXML_TestCase' number='5AC02'
+                reason='2' reasonname='Update'
+                description='Reserved for future use; not yet implemented'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-3' name='Operation'>
+      2 (Update)
+     </bit>
+     <bit number='4-31' state='reserved'>
+      Reserved
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+  </entry>
+
+  <use>
+   <p>
+   This reason code is reserved for future use. It is not currently implemented; calling it
+   always returns <reference type='error' name='JUnitXML_BadCaseOp'/>.
+   </p>
+  </use>
+  <related>
+   <reference type='swi' name='JUnitXML_TestCase' reason='0'/>
+   <reference type='swi' name='JUnitXML_TestCase' reason='1'/>
   </related>
 </swi-definition>
 
@@ -499,9 +738,7 @@ suites.
    <register-use number='0'>
     Preserved
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -545,6 +782,7 @@ suites.
   </example>
   <related>
    <reference type='swi' name='JUnitXML_Create'/>
+   <reference type='swi' name='JUnitXML_Result'/>
   </related>
 </swi-definition>
 
@@ -578,9 +816,7 @@ suites.
    <register-use number='4'>
     Number of skips
    </register-use>
-   <processor-flag name='C'>
-    Set if error occurred
-   </processor-flag>
+
   </exit>
   <use>
    <p>
@@ -589,7 +825,27 @@ suites.
    </p>
 
    <p>
-   The number of passes is derived as the total test count minus failures, errors, and skips.
+   R0 (flags) must be zero on entry; all flag bits are reserved for future use.
+   </p>
+
+   <p>
+   This SWI may be called at any point while the handle is valid — before or after closing
+   individual suites. It must not be called after JUnitXML_Close has been used to close the
+   handle, as the handle will no longer be valid.
+   </p>
+
+   <p>
+   The returned counts are:
+   </p>
+
+   <p>
+   <list type='unordered'>
+    <item><p>R0: Total number of test cases recorded across all suites</p></item>
+    <item><p>R1: Number of passing tests (total minus failures, errors, and skips)</p></item>
+    <item><p>R2: Number of tests that reported a failure status</p></item>
+    <item><p>R3: Number of tests that reported an error status</p></item>
+    <item><p>R4: Number of tests that were skipped</p></item>
+   </list>
    </p>
   </use>
   <example>
@@ -599,7 +855,10 @@ suites.
     SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%<br/>
     PRINT "Tests: "; tests%<br/>
     PRINT "Passes: "; passes%<br/>
-    PRINT "Failures: "; failures%
+    PRINT "Failures: "; failures%<br/>
+    PRINT "Errors: "; errors%<br/>
+    PRINT "Skipped: "; skips%<br/>
+    IF failures% + errors% &gt; 0 THEN PRINT "FAILED" ELSE PRINT "PASSED"
    </extended-example>
    </p>
   </example>
@@ -620,78 +879,78 @@ module-specific with base &amp;822A00, and are returned as negative values from 
 the carry flag.
 </p>
 
-<error-definition number='822A00' name='JUnitXML_InitFailed' description='Module initialisation failed'>
-  <use>
-   <p>Module initialisation failed. The state manager could not be initialised.</p>
-  </use>
-</error-definition>
-
-<error-definition number='822A01' name='JUnitXML_CreateFailed' description='Failed to create handle'>
+<error-definition number='822A00' name='JUnitXML_CreateFailed' description='Failed to create JUnitXML handle'>
   <use>
    <p>Failed to create a new JUnit XML handle. This may be due to memory exhaustion or invalid
    parameters.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A02' name='JUnitXML_CreateSuiteFailed' description='Failed to create test suite'>
+<error-definition number='822A01' name='JUnitXML_CreateSuiteFailed' description='Failed to create test suite'>
   <use>
    <p>Failed to create a test suite within the handle. This may occur if the handle is invalid or
    if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A03' name='JUnitXML_CloseSuiteFailed' description='Failed to close test suite'>
+<error-definition number='822A02' name='JUnitXML_CloseSuiteFailed' description='Failed to close test suite'>
   <use>
    <p>Failed to close a test suite. This may occur if the suite is not properly formed or if
    writing to the output file fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A04' name='JUnitXML_BadSuiteOp' description='Invalid test suite operation'>
-  <use>
-   <p>An invalid operation code was specified for JUnitXML_TestSuite. The operation must be 0
-   (Create), 1 (Close), or 3 (Property).</p>
-  </use>
-</error-definition>
-
-<error-definition number='822A05' name='JUnitXML_SetPropertyFailed' description='Failed to set suite property'>
+<error-definition number='822A03' name='JUnitXML_SetPropertyFailed' description='Failed to set property'>
   <use>
    <p>Failed to set a property on a test suite. This may occur if the property name or value is
    invalid, or if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A06' name='JUnitXML_CreateCaseFailed' description='Failed to create test case'>
+<error-definition number='822A04' name='JUnitXML_BadSuiteOp' description='Unknown TestSuite operation'>
+  <use>
+   <p>An unknown operation code was specified for JUnitXML_TestSuite. The supported operations
+   are 0 (Create), 1 (Close), and 3 (Property).</p>
+  </use>
+</error-definition>
+
+<error-definition number='822A05' name='JUnitXML_CreateCaseFailed' description='Failed to create test case'>
   <use>
    <p>Failed to create a test case. This may occur if the handle or current suite is invalid, or
    if memory allocation fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A07' name='JUnitXML_CloseCaseFailed' description='Failed to close test case'>
+<error-definition number='822A06' name='JUnitXML_CloseCaseFailed' description='Failed to close test case'>
   <use>
    <p>Failed to close a test case. This may occur if writing to the output file fails.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A08' name='JUnitXML_BadCaseOp' description='Invalid test case operation'>
+<error-definition number='822A07' name='JUnitXML_BadCaseOp' description='Unknown TestCase operation'>
   <use>
-   <p>An invalid operation code was specified for JUnitXML_TestCase. The operation must be 0
-   (Create) or 1 (Close).</p>
+   <p>An unknown operation code was specified for JUnitXML_TestCase. The supported operations
+   are 0 (Create) and 1 (Close).</p>
   </use>
 </error-definition>
 
-<error-definition number='822A09' name='JUnitXML_CloseFailed' description='Failed to close handle'>
+<error-definition number='822A08' name='JUnitXML_CloseFailed' description='Failed to close JUnitXML handle'>
   <use>
    <p>Failed to close a JUnit XML handle. This may occur if writing the final XML structure fails
    or if the handle is invalid.</p>
   </use>
 </error-definition>
 
-<error-definition number='822A0A' name='JUnitXML_NoHandle' description='No handle available to close'>
+<error-definition number='822A09' name='JUnitXML_NoHandle' description='No JUnitXML handle to close'>
   <use>
    <p>No handle is available to close. All handles may have already been closed, or the module
    may not have been initialised.</p>
+  </use>
+</error-definition>
+
+<error-definition number='822A0A' name='JUnitXML_InitFailed' description='Failed to initialise JUnitXML state'>
+  <use>
+   <p>Module initialisation failed. The internal state manager could not be initialised.</p>
   </use>
 </error-definition>
 

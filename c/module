@@ -185,9 +185,16 @@ _kernel_oserror *Mod_SWITestSuite(int number, _kernel_swi_regs *r, void *pw)
         }
 
         case JUnitXML_TestSuite_OpUpdate:
-            /* Update operation - not fully specified in design */
-            err = Err_BadSuiteOp;
+        {
+            const char *hostname = (flags & JUnitXML_TestSuite_HostnameSupplied) ? (const char *)r->r[2] : NULL;
+            const char *uname    = (flags & JUnitXML_TestSuite_UpdateName)        ? (const char *)r->r[3] : NULL;
+            const char *upackage = (flags & JUnitXML_TestSuite_UpdatePackage)     ? (const char *)r->r[4] : NULL;
+
+            if (junit_suite_update(handle, hostname, uname, upackage) != 0) {
+                err = Err_BadSuiteOp;
+            }
             break;
+        }
 
         case JUnitXML_TestSuite_OpProperty:
         {

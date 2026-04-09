@@ -72,6 +72,24 @@ int junit_suite_create(
 );
 
 /*
+ * Update metadata on the current open test suite.
+ * Parameters may be NULL to leave the corresponding field unchanged.
+ * Must be called before the first property or test case is added.
+ * Parameters:
+ *   handle_id - handle ID
+ *   hostname  - hostname string, or NULL to leave unchanged
+ *   name      - new suite name, or NULL to leave unchanged
+ *   package   - new package name, or NULL to leave unchanged
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_suite_update(
+    int handle_id,
+    const char *hostname,
+    const char *name,
+    const char *package
+);
+
+/*
  * Close a test suite
  * Parameters:
  *   handle_id - handle ID
