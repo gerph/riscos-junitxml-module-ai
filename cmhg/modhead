@@ -102,7 +102,11 @@ finalisation-code: Mod_Final
 ; This should be the name of the module, or some obvious variant. You should
 ; register your SWI prefixes when you register a SWI chunk. Each name entry
 ; may be followed by /<entry> to use a particular routine to handle a SWI.
-swi-decoding-table: JUnitXML Create/Mod_SWICreate TestSuite/Mod_SWITestSuite TestCase/Mod_SWITestCase Close/Mod_SWIClose
+swi-decoding-table: JUnitXML Create/Mod_SWICreate,
+                             TestSuite/Mod_SWITestSuite,
+                             TestCase/Mod_SWITestCase,
+                             Close/Mod_SWIClose,
+                             Result/Mod_SWIResult
 
 ; The library initialisation code sets up the C environment for use with
 ; this module. You may wish to perform some initialisation prior to the C

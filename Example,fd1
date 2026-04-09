@@ -1,4 +1,6 @@
+REM >Example
 REM JUnit XML output example
+ON ERROR ERROR EXT ERR, REPORT$ + " at line " + STR$(ERL/10)
 
 JUnitXML_Create_FilenameGiven = 1
 JUnitXML_Success = (1<<4)
@@ -32,6 +34,14 @@ SYS "JUnitXML_TestCase", JUnitXML_Skipped, jx%, 0, "Calculator", "testMultiplica
 
 REM Close the suite
 SYS "JUnitXML_TestSuite", 1, jx%
+
+REM Query result counts
+SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%
+PRINT "Tests:    "; tests%
+PRINT "Passes:   "; passes%
+PRINT "Failures: "; failures%
+PRINT "Errors:   "; errors%
+PRINT "Skips:    "; skips%
 
 REM Close the file
 SYS "JUnitXML_Close", 0

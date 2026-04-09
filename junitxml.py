@@ -25,6 +25,7 @@ SWI_JUnitXML_Create = 0
 SWI_JUnitXML_TestSuite = 1
 SWI_JUnitXML_TestCase = 2
 SWI_JUnitXML_Close = 3
+SWI_JUnitXML_Result = 4
 
 # Flag definitions (matching C module)
 JUnitXML_Create_FilenameGiven = (1 << 0)
@@ -313,6 +314,7 @@ class JUnitXML(PyModule, object):
         'TestSuite',
         'TestCase',
         'Close',
+        'Result',
     ]
     error_base = 0x822A00
     errors = [
@@ -367,6 +369,8 @@ class JUnitXML(PyModule, object):
             return self.swi_testcase(regs)
         elif swioffset == SWI_JUnitXML_Close:
             return self.swi_close(regs)
+        elif swioffset == SWI_JUnitXML_Result:
+            return self.swi_result(regs)
         return False
 
     def swi_create(self, regs):
@@ -609,5 +613,41 @@ class JUnitXML(PyModule, object):
 
         # Remove from handle list
         del self.handles[handle_id]
+
+        return True
+
+    def swi_result(self, regs):
+        """
+        JUnitXML_Result
+        =>  R0 = flags (reserved, must be 0)
+            R1 = junitxml handle
+        <=  R0 = number of tests present
+            R1 = number of passes
+            R2 = number of failures
+            R3 = number of errors
+            R4 = number of skips
+        """
+        handle_id = regs[1]
+
+        handle = self.handles.get(handle_id)
+        if not handle:
+            raise self.error('NoHandle')
+
+        tests = 0
+        failures = 0
+        errors = 0
+        skips = 0
+
+        for suite in handle.suites:
+            tests    += suite.tests_count
+            failures += suite.failures_count
+            errors   += suite.errors_count
+            skips    += suite.skipped_count
+
+        regs[0] = tests
+        regs[1] = tests - failures - errors - skips
+        regs[2] = failures
+        regs[3] = errors
+        regs[4] = skips
 
         return True

@@ -548,6 +548,68 @@ suites.
   </related>
 </swi-definition>
 
+<swi-definition name='JUnitXML_Result' number='5AC04'>
+  <entry>
+   <register-use number='0'>
+    Flags
+    <bitfield-table>
+     <bit number='0-31' state='reserved'>
+      Reserved, must be zero
+     </bit>
+    </bitfield-table>
+   </register-use>
+   <register-use number='1'>
+    Handle ID
+   </register-use>
+  </entry>
+  <exit>
+   <register-use number='0'>
+    Number of tests present
+   </register-use>
+   <register-use number='1'>
+    Number of passes
+   </register-use>
+   <register-use number='2'>
+    Number of failures
+   </register-use>
+   <register-use number='3'>
+    Number of errors
+   </register-use>
+   <register-use number='4'>
+    Number of skips
+   </register-use>
+   <processor-flag name='C'>
+    Set if error occurred
+   </processor-flag>
+  </exit>
+  <use>
+   <p>
+   JUnitXML_Result returns aggregate result counts for all test suites recorded within the given
+   handle. The counts are summed across all suites, including suites that are still open.
+   </p>
+
+   <p>
+   The number of passes is derived as the total test count minus failures, errors, and skips.
+   </p>
+  </use>
+  <example>
+   <p>Reading result counts after running tests:</p>
+   <p>
+   <extended-example type='basic'>
+    SYS "JUnitXML_Result", 0, jx% TO tests%, passes%, failures%, errors%, skips%<br/>
+    PRINT "Tests: "; tests%<br/>
+    PRINT "Passes: "; passes%<br/>
+    PRINT "Failures: "; failures%
+   </extended-example>
+   </p>
+  </example>
+  <related>
+   <reference type='swi' name='JUnitXML_Create'/>
+   <reference type='swi' name='JUnitXML_TestCase'/>
+   <reference type='swi' name='JUnitXML_Close'/>
+  </related>
+</swi-definition>
+
 </section>
 
 <section title="Error Messages">
@@ -883,6 +945,9 @@ The above C code would generate XML similar to:
   <history>
    <revision number="1" date="27 March 2026" author="CF" title="Initial version">
     <change>Created initial PRM-in-XML documentation for JUnitXML module</change>
+   </revision>
+   <revision number="2" date="09 April 2026" author="CF" title="Add JUnitXML_Result SWI">
+    <change>Added documentation for JUnitXML_Result SWI which returns aggregate test result counts</change>
    </revision>
   </history>
   <related>

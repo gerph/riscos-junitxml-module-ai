@@ -102,8 +102,19 @@ JUnitXML_Close
             b0 : filename to write is supplied (overrides the original filename)
     R1-> filename (if b0 set)
 
-Example BASIC code that should work:
+JUnitXML_Result
 
+=> R0 = flags:
+            b0-31: reserved
+   R1 = junitxml handle
+<= R0 = number of tests present
+   R1 = number of passes
+   R2 = number of failures
+   R3 = number of errors
+   R4 = number of skips
+
+
+Example BASIC code that should work:
 
 JUnitXML_Success = (1<<4)
 JUnitXML_Failure = (2<<4)

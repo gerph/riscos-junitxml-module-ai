@@ -315,6 +315,35 @@ _kernel_oserror *Mod_SWIClose(int number, _kernel_swi_regs *r, void *pw)
 }
 
 
+/*
+ * SWI: JUnitXML_Result
+ * Retrieve result counts for a handle
+ */
+_kernel_oserror *Mod_SWIResult(int number, _kernel_swi_regs *r, void *pw)
+{
+    int handle = r->r[1];
+    int tests = 0;
+    int passes = 0;
+    int failures = 0;
+    int errors = 0;
+    int skips = 0;
+
+    dprintf("JUnitXML_Result: handle=%d\n", handle);
+
+    if (junit_result(handle, &tests, &passes, &failures, &errors, &skips) != 0) {
+        return Err_NoHandle;
+    }
+
+    r->r[0] = tests;
+    r->r[1] = passes;
+    r->r[2] = failures;
+    r->r[3] = errors;
+    r->r[4] = skips;
+
+    return NULL;
+}
+
+
 /***************************************************************************
  * Function:     Mod_Init
  * Description:  Initialise the module, setting up vectors, callbacks and

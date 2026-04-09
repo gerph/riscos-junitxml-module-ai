@@ -651,6 +651,44 @@ int junit_case_create(
 }
 
 /*
+ * Retrieve result counts for a handle
+ */
+int junit_result(int handle_id,
+                 int *tests_out,
+                 int *passes_out,
+                 int *failures_out,
+                 int *errors_out,
+                 int *skips_out)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+    int tests = 0;
+    int failures = 0;
+    int errors = 0;
+    int skips = 0;
+
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+
+    for (ts = h->suites; ts != NULL; ts = ts->next) {
+        tests    += ts->tests_count;
+        failures += ts->failures_count;
+        errors   += ts->errors_count;
+        skips    += ts->skipped_count;
+    }
+
+    *tests_out    = tests;
+    *passes_out   = tests - failures - errors - skips;
+    *failures_out = failures;
+    *errors_out   = errors;
+    *skips_out    = skips;
+
+    return 0;
+}
+
+/*
  * Close a test case (write it out)
  */
 int junit_case_close(int handle_id, int duration_cs)

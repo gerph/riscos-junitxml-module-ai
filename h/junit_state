@@ -122,6 +122,24 @@ int junit_case_create(
 int junit_case_close(int handle_id, int duration_cs);
 
 /*
+ * Retrieve result counts for a handle
+ * Parameters:
+ *   handle_id    - handle ID
+ *   tests_out    - receives total number of tests
+ *   passes_out   - receives number of passing tests
+ *   failures_out - receives number of failures
+ *   errors_out   - receives number of errors
+ *   skips_out    - receives number of skipped tests
+ * Returns: 0 on success, non-zero on error
+ */
+int junit_result(int handle_id,
+                 int *tests_out,
+                 int *passes_out,
+                 int *failures_out,
+                 int *errors_out,
+                 int *skips_out);
+
+/*
  * Helper: duplicate a string using malloc
  */
 char *junit_strdup(const char *s);
