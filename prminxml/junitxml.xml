@@ -277,12 +277,8 @@ suites.
   <example>
    <p>Creating a test suite with current timestamp:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #0          ; reason=Create, current time<br/>
-    MOV R1, handle      ; handle ID<br/>
-    LDR R2, =suite_id   ; suite ID string<br/>
-    LDR R3, =suite_name ; suite name string<br/>
-    SWI "JUnitXML_TestSuite"
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestSuite", 0, jx%, "suite1", "My Test Suite"
    </extended-example>
    </p>
   </example>
@@ -338,13 +334,10 @@ suites.
    </p>
   </use>
   <example>
-   <p>Closing a test suite with duration:</p>
+   <p>Closing a test suite with duration of one second:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #(1 :OR: (1&lt;&lt;7)) ; reason=Close, duration present<br/>
-    MOV R1, handle               ; handle ID<br/>
-    MOV R2, #100                 ; duration = 100 centiseconds<br/>
-    SWI "JUnitXML_TestSuite"
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestSuite", 1 OR (1&lt;&lt;7), jx%, 100
    </extended-example>
    </p>
   </example>
@@ -601,29 +594,15 @@ suites.
   <example>
    <p>Creating a successful test case:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #16         ; reason=Create, status=SUCCESS (1&lt;&lt;4)<br/>
-    MOV R1, handle      ; handle ID<br/>
-    LDR R2, =test_id    ; test ID string<br/>
-    LDR R3, =classname  ; classname string<br/>
-    LDR R4, =test_name  ; test name string<br/>
-    MOV R5, #0          ; no failure type<br/>
-    MOV R6, #0          ; no failure message<br/>
-    SWI "JUnitXML_TestCase"
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestCase", 1&lt;&lt;4, jx%, "test1", "Calculator", "testAdd", 0, 0
    </extended-example>
    </p>
 
    <p>Creating a failed test case:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #32         ; reason=Create, status=FAILURE (2&lt;&lt;4)<br/>
-    MOV R1, handle      ; handle ID<br/>
-    LDR R2, =test_id    ; test ID string<br/>
-    LDR R3, =classname  ; classname string<br/>
-    LDR R4, =test_name  ; test name string<br/>
-    LDR R5, =fail_type  ; "AssertionError"<br/>
-    LDR R6, =fail_msg   ; "Expected 5 but got 3"<br/>
-    SWI "JUnitXML_TestCase"
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestCase", 2&lt;&lt;4, jx%, "test2", "Calculator", "testDivide", "AssertionError", "Expected 5 but got 3"
    </extended-example>
    </p>
   </example>
@@ -668,13 +647,10 @@ suites.
    </p>
   </use>
   <example>
-   <p>Closing a test case with duration:</p>
+   <p>Closing a test case with duration of half a second:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #1          ; reason=Close<br/>
-    MOV R1, handle      ; handle ID<br/>
-    MOV R2, #50         ; duration = 50 centiseconds<br/>
-    SWI "JUnitXML_TestCase"
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestCase", 1, jx%, 50
    </extended-example>
    </p>
   </example>
@@ -765,18 +741,15 @@ suites.
   <example>
    <p>Closing a handle with the original filename:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #0          ; flags = use original filename<br/>
-    SWI "JUnitXML_Close"
+   <extended-example type='basic'>
+    SYS "JUnitXML_Close", 0
    </extended-example>
    </p>
 
    <p>Closing a handle with a different filename:</p>
    <p>
-   <extended-example type='c'>
-    MOV R0, #1          ; flags = filename given<br/>
-    LDR R1, =newname    ; new filename string<br/>
-    SWI "JUnitXML_Close"
+   <extended-example type='basic'>
+    SYS "JUnitXML_Close", 1, "$.results.junit/xml"
    </extended-example>
    </p>
   </example>
@@ -1005,51 +978,23 @@ A typical usage pattern for generating JUnit XML output:
 
 </subsection>
 
-<subsection title="Unloading the Module">
+<subsection title="Killing the Module">
 
 <p>
-To unload the module:
+To kill the module:
 </p>
 
 <p>
 <list type='unordered'>
- <item><p><userinput>*RMUnLoad JUnitXML</userinput></p></item>
+ <item><p><userinput>*RMKill JUnitXML</userinput></p></item>
 </list>
 </p>
 
 <p>
-All open handles will be closed and their resources freed when the module is unloaded.
+All open handles will be closed and their resources freed when the module is killed.
 </p>
 
 </subsection>
-
-</section>
-
-<section title="Compatibility">
-
-<p>
-The JUnitXML module is compatible with:
-</p>
-
-<p>
-<list type='unordered'>
- <item><p>RISC OS 3 and later</p></item>
- <item><p>RISC OS 5 and later (32-bit and 64-bit builds)</p></item>
- <item><p>RPCEmu and other RISC OS emulators</p></item>
-</list>
-</p>
-
-<p>
-The module requires the following SWIs to be available:
-</p>
-
-<p>
-<list type='unordered'>
- <item><p>Territory_ConvertDateAndTime (for timestamp conversion)</p></item>
- <item><p>OS_GBPB (for file output)</p></item>
- <item><p>OS_Module (for module services)</p></item>
-</list>
-</p>
 
 </section>
 
