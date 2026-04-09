@@ -198,6 +198,36 @@ static const char *format_id(const char *id, uint16_t numeric_id, char *buf)
 }
 
 /*
+ * Write the testsuite opening tag and properties container opening to the
+ * streaming file. Called lazily, just before the first property or test case
+ * is written, so that Update calls have a chance to set metadata first.
+ */
+static int write_suite_header(junit_handle_t *h, junit_testsuite_t *ts)
+{
+    char id_buf[8];
+    if (junit_xml_write_testsuite_open(
+            h->fp,
+            ts->name,
+            ts->package,
+            ts->hostname,
+            format_id(ts->id, ts->numeric_id, id_buf),
+            ts->timestamp,
+            -1, /* tests: omitted in streaming mode */
+            -1, /* failures: omitted in streaming mode */
+            -1, /* errors: omitted in streaming mode */
+            -1, /* skipped: omitted in streaming mode */
+            -1  /* time: omitted in streaming mode */
+        ) != 0) {
+        return -1;
+    }
+    if (fprintf(h->fp, "    <properties>\n") < 0) {
+        return -1;
+    }
+    ts->header_written = 1;
+    return 0;
+}
+
+/*
  * Create a new test suite structure
  */
 static junit_testsuite_t *create_testsuite(
@@ -448,31 +478,54 @@ int junit_suite_create(
     h->suites = ts;
     h->current_suite = ts;
 
-    /* Write the suite header immediately for incremental output */
-    if (h->fp != NULL) {
-        char id_buf[8];
-        if (junit_xml_write_testsuite_open(
-                h->fp,
-                ts->name,
-                ts->package,
-                ts->hostname,
-                format_id(ts->id, ts->numeric_id, id_buf),
-                ts->timestamp,
-                -1, /* tests: omitted in streaming mode */
-                -1, /* failures: omitted in streaming mode */
-                -1, /* errors: omitted in streaming mode */
-                -1, /* skipped: omitted in streaming mode */
-                -1  /* time: omitted in streaming mode */
-            ) != 0) {
+    return 0;
+}
+
+/*
+ * Update metadata on the current open test suite
+ */
+int junit_suite_update(
+    int handle_id,
+    const char *hostname,
+    const char *name,
+    const char *package
+)
+{
+    junit_handle_t *h;
+    junit_testsuite_t *ts;
+
+    h = find_handle(handle_id);
+    if (h == NULL) {
+        return -1;
+    }
+
+    ts = h->current_suite;
+    if (ts == NULL || !ts->is_open) {
+        return -1;
+    }
+
+    if (hostname != NULL) {
+        junit_strfree(&ts->hostname);
+        ts->hostname = junit_strdup(hostname);
+        if (ts->hostname == NULL) {
             return -1;
         }
-        
-        /* Write properties container opening tag */
-        if (fprintf(h->fp, "    <properties>\n") < 0) {
+    }
+
+    if (name != NULL) {
+        junit_strfree(&ts->name);
+        ts->name = junit_strdup(name);
+        if (ts->name == NULL) {
             return -1;
         }
-        
-        fflush(h->fp);
+    }
+
+    if (package != NULL) {
+        junit_strfree(&ts->package);
+        ts->package = junit_strdup(package);
+        if (ts->package == NULL) {
+            return -1;
+        }
     }
 
     return 0;
@@ -508,15 +561,21 @@ int junit_suite_close(int handle_id, int duration_cs)
         ts->time_cs = duration_cs;
     }
 
-    /* Close properties container if not already closed (no test cases) */
-    if (h->fp != NULL && !ts->properties_closed) {
-        if (fprintf(h->fp, "    </properties>\n") < 0) {
-            return -1;
-        }
-    }
-
-    /* Close suite */
     if (h->fp != NULL) {
+        /* Flush deferred header if nothing has been written yet */
+        if (!ts->header_written) {
+            if (write_suite_header(h, ts) != 0) {
+                return -1;
+            }
+        }
+
+        /* Close properties container if not already closed */
+        if (!ts->properties_closed) {
+            if (fprintf(h->fp, "    </properties>\n") < 0) {
+                return -1;
+            }
+        }
+
         if (junit_xml_write_testsuite_close(h->fp) != 0) {
             return -1;
         }
@@ -574,6 +633,11 @@ int junit_suite_set_property(int handle_id, const char *name, const char *value)
 
     /* Write property immediately for incremental output */
     if (h->fp != NULL) {
+        if (!ts->header_written) {
+            if (write_suite_header(h, ts) != 0) {
+                return -1;
+            }
+        }
         if (junit_xml_write_property(h->fp, prop->name, prop->value) != 0) {
             return -1;
         }
@@ -754,6 +818,11 @@ int junit_case_close(int handle_id, int duration_cs)
 
     /* Close properties container before first test case */
     if (h->fp != NULL && !ts->properties_closed) {
+        if (!ts->header_written) {
+            if (write_suite_header(h, ts) != 0) {
+                return -1;
+            }
+        }
         if (fprintf(h->fp, "    </properties>\n") < 0) {
             return -1;
         }

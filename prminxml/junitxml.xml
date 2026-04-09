@@ -357,7 +357,7 @@ suites.
 
 <swi-definition name='JUnitXML_TestSuite' number='5AC01'
                 reason='2' reasonname='Update'
-                description='Reserved for future use; not yet implemented'>
+                description='Updates metadata on the current open test suite'>
   <entry>
    <register-use number='0'>
     Flags
@@ -365,7 +365,16 @@ suites.
      <bit number='0-3' name='Operation'>
       2 (Update)
      </bit>
-     <bit number='4-31' state='reserved'>
+     <bit number='4' name='JUnitXML_TestSuite_HostnameSupplied'>
+      If set, R2 points to a hostname string
+     </bit>
+     <bit number='5' name='JUnitXML_TestSuite_UpdateName'>
+      If set, R3 points to a new suite name string
+     </bit>
+     <bit number='6' name='JUnitXML_TestSuite_UpdatePackage'>
+      If set, R4 points to a new package name string
+     </bit>
+     <bit number='7-31' state='reserved'>
       Reserved
      </bit>
     </bitfield-table>
@@ -373,14 +382,49 @@ suites.
    <register-use number='1'>
     Handle ID
    </register-use>
+   <register-use number='2'>
+    Hostname string pointer (if bit 4 of R0 set), otherwise ignored
+   </register-use>
+   <register-use number='3'>
+    New suite name string pointer (if bit 5 of R0 set), otherwise ignored
+   </register-use>
+   <register-use number='4'>
+    New package name string pointer (if bit 6 of R0 set), otherwise ignored
+   </register-use>
   </entry>
+  <exit>
+   <register-use number='0'>
+    Preserved
+   </register-use>
+  </exit>
 
   <use>
    <p>
-   This reason code is reserved for future use. It is not currently implemented; calling it
-   always returns <reference type='error' name='JUnitXML_BadSuiteOp'/>.
+   Updates metadata on the currently open test suite for the given handle. This call
+   allows the hostname, suite name, and package name to be set or changed after the suite
+   has been created with reason 0.
+   </p>
+
+   <p>
+   Only the fields for which the corresponding flag bit is set are updated; fields for
+   which the bit is clear are left unchanged.
+   </p>
+
+   <p>
+   This call must be made before the first property or test case is added to the suite,
+   since the suite header is written to the XML output lazily just before those items.
+   Calling Update after a property or test case has been added returns
+   <reference type='error' name='JUnitXML_BadSuiteOp'/>.
    </p>
   </use>
+  <example>
+   <p>Setting the hostname on the current suite:</p>
+   <p>
+   <extended-example type='basic'>
+    SYS "JUnitXML_TestSuite", 2 + (1&lt;&lt;4), jx%, "my-machine"
+   </extended-example>
+   </p>
+  </example>
   <related>
    <reference type='swi' name='JUnitXML_TestSuite' reason='0'/>
    <reference type='swi' name='JUnitXML_TestSuite' reason='1'/>

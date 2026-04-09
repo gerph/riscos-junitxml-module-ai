@@ -98,6 +98,7 @@ typedef struct junit_testsuite {
     junit_testcase_t *current_case; /* Current test case being built */
     struct junit_testsuite *next;/* Next suite */
     int is_open;                 /* Suite is open for adding tests */
+    int header_written;          /* Streaming: testsuite tag has been written */
     int properties_closed;       /* Properties container has been closed */
     uint16_t next_case_id;       /* Next auto-generated test case numeric ID */
 } junit_testsuite_t;

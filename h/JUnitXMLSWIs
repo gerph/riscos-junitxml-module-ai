@@ -18,6 +18,7 @@
 #define JUnitXML_TestSuite_OpUpdate    2
 #define JUnitXML_TestSuite_OpProperty  3
 
+/* Flags for Create (bits 4+) */
 #define JUnitXML_TestSuite_PackageSupplied   (1 << 4)
 #define JUnitXML_TestSuite_TSMask            (3 << 5)
 #define JUnitXML_TestSuite_TSShift           5
@@ -26,6 +27,11 @@
 #define JUnitXML_TestSuite_TSUnix            (2 << 5)
 #define JUnitXML_TestSuite_TSISO8601         (3 << 5)
 #define JUnitXML_TestSuite_DurationPresent   (1 << 7)
+
+/* Flags for Update (bits 4+) */
+#define JUnitXML_TestSuite_HostnameSupplied  (1 << 4)
+#define JUnitXML_TestSuite_UpdateName        (1 << 5)
+#define JUnitXML_TestSuite_UpdatePackage     (1 << 6)
 
 #define JUnitXML_TestCase_OpMask       0x0F
 #define JUnitXML_TestCase_OpCreate     0
