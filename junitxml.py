@@ -45,6 +45,11 @@ JUnitXML_TestSuite_TSUnix = (2 << 5)
 JUnitXML_TestSuite_TSISO8601 = (3 << 5)
 JUnitXML_TestSuite_DurationPresent = (1 << 7)
 
+# Flags for Update operation (bits 4+)
+JUnitXML_TestSuite_HostnameSupplied = (1 << 4)
+JUnitXML_TestSuite_UpdateName       = (1 << 5)
+JUnitXML_TestSuite_UpdatePackage    = (1 << 6)
+
 JUnitXML_TestCase_OpMask = 0x0F
 JUnitXML_TestCase_OpCreate = 0
 JUnitXML_TestCase_OpClose = 1
@@ -66,9 +71,10 @@ JUnitXML_Close_FilenameGiven = (1 << 0)
 class JUnitHandle(object):
     """Represents a JUnit XML file handle."""
 
-    def __init__(self, handle_id, ro, filename=None):
+    def __init__(self, handle_id, ro, error_fn, filename=None):
         self.handle_id = handle_id
         self.ro = ro
+        self.error = error_fn
         self.filename = filename
         self.file = None
         self.suites = []
@@ -100,91 +106,118 @@ class JUnitHandle(object):
         if self.file:
             self.file.write('</testsuites>\n')
 
+    def _ensure_suite_header(self, suite):
+        """Write the suite opening tag and properties container lazily, if not yet written."""
+        if self.file and not suite.header_written:
+            suite.write_open(self.file)
+            self.file.write('    <properties>\n')
+            suite.header_written = True
+
     def create_suite(self, id_val, name, package, timestamp):
         """Create a new test suite."""
+        # Auto-assign a numeric ID when none supplied
+        if id_val is None:
+            id_val = str(self.next_suite_id)
         suite = JUnitTestSuite(self.next_suite_id, id_val, name, package, timestamp)
         self.suites.append(suite)
         self.current_suite = suite
         self.next_suite_id += 1
-
-        # Write suite header immediately for incremental output
-        if self.file:
-            suite.write_open(self.file)
-            # Write properties container opening tag
-            self.file.write('    <properties>\n')
-            self.file.flush()
-
+        # Header is written lazily before the first property or test case
         return suite
+
+    def update_suite(self, hostname, name, package):
+        """Update metadata on the current open suite (before any content is added)."""
+        suite = self.current_suite
+        if not suite:
+            raise self.error('BadSuiteOp')
+        if suite.header_written:
+            raise self.error('BadSuiteOp')
+        if hostname is not None:
+            suite.hostname = hostname
+        if name is not None:
+            suite.name = name
+        if package is not None:
+            suite.package = package
 
     def close_suite(self, duration_cs=0):
         """Close the current test suite."""
         if self.current_suite:
+            suite = self.current_suite
+
             # Close any open test case first
-            if self.current_suite.current_case:
+            if suite.current_case:
                 self.close_testcase(0)
 
             if self.file:
+                self._ensure_suite_header(suite)
                 # Close properties container if not already closed
-                if not self.current_suite.properties_closed:
+                if not suite.properties_closed:
                     self.file.write('    </properties>\n')
-                    self.current_suite.properties_closed = True
-                self.current_suite.write_close(self.file, duration_cs)
+                    suite.properties_closed = True
+                suite.write_close(self.file, duration_cs)
                 self.file.flush()
             self.current_suite = None
 
     def set_property(self, name, value):
         """Set a property on the current suite."""
         if self.current_suite:
-            self.current_suite.properties.append((name, value))
-            # Write property immediately for incremental output
+            suite = self.current_suite
+            suite.properties.append((name, value))
             if self.file:
+                self._ensure_suite_header(suite)
                 self.file.write('      <property name="{}" value="{}"/>\n'.format(
                     xml_escape(name), xml_escape(value)))
                 self.file.flush()
 
     def create_testcase(self, id_val, classname, name, status, failure_type, failure_msg):
         """Create a new test case."""
-        if not self.current_suite:
+        suite = self.current_suite
+        if not suite:
             raise self.error('BadSuiteOp')
 
         # Close any existing open test case
-        if self.current_suite.current_case:
+        if suite.current_case:
             self.close_testcase(0)
 
+        # Auto-assign a numeric ID when none supplied
+        if id_val is None:
+            id_val = str(suite.next_case_id)
+        suite.next_case_id += 1
+
         testcase = JUnitTestCase(id_val, classname, name, status, failure_type, failure_msg)
-        self.current_suite.current_case = testcase
+        suite.current_case = testcase
         return testcase
 
     def close_testcase(self, duration_cs=0):
         """Close the current test case and write it out."""
-        if not self.current_suite or not self.current_suite.current_case:
+        suite = self.current_suite
+        if not suite or not suite.current_case:
             raise self.error('BadCaseOp')
 
-        tc = self.current_suite.current_case
+        tc = suite.current_case
         tc.time_cs = duration_cs
 
         # Update suite counts
-        self.current_suite.tests_count += 1
+        suite.tests_count += 1
         if tc.status == JUnitXML_TestCase_StatusFailure:
-            self.current_suite.failures_count += 1
+            suite.failures_count += 1
         elif tc.status == JUnitXML_TestCase_StatusError:
-            self.current_suite.errors_count += 1
+            suite.errors_count += 1
         elif tc.status == JUnitXML_TestCase_StatusSkipped:
-            self.current_suite.skipped_count += 1
+            suite.skipped_count += 1
 
-        # Close properties container before first test case
-        if self.file and not self.current_suite.properties_closed:
-            self.file.write('    </properties>\n')
-            self.current_suite.properties_closed = True
-
-        # Write the test case to file
         if self.file:
+            self._ensure_suite_header(suite)
+            # Close properties container before first test case
+            if not suite.properties_closed:
+                self.file.write('    </properties>\n')
+                suite.properties_closed = True
             tc.write(self.file)
             self.file.flush()
 
         # Add to test cases list
-        self.current_suite.testcases.append(tc)
-        self.current_suite.current_case = None
+        suite.testcases.append(tc)
+        suite.current_case = None
 
 
 class JUnitTestSuite(object):
@@ -206,9 +239,11 @@ class JUnitTestSuite(object):
         self.testcases = []
         self.current_case = None
         self.properties_closed = False
+        self.header_written = False
+        self.next_case_id = 1
 
     def write_open(self, fp):
-        """Write the opening tag of the test suite."""
+        """Write the opening tag of the test suite (counts omitted; not known during streaming)."""
         fp.write('  <testsuite')
         fp.write(' name="{}"'.format(xml_escape(self.name)))
         if self.package:
@@ -219,13 +254,6 @@ class JUnitTestSuite(object):
             fp.write(' id="{}"'.format(xml_escape(self.id)))
         if self.timestamp:
             fp.write(' timestamp="{}"'.format(xml_escape(self.timestamp)))
-        fp.write(' tests="{}"'.format(self.tests_count))
-        fp.write(' failures="{}"'.format(self.failures_count))
-        fp.write(' errors="{}"'.format(self.errors_count))
-        fp.write(' skipped="{}"'.format(self.skipped_count))
-        seconds = self.time_cs // 100
-        cs = self.time_cs % 100
-        fp.write(' time="{}.{:02d}"'.format(seconds, cs))
         fp.write('>\n')
 
     def write_close(self, fp, duration_cs=0):
@@ -393,7 +421,7 @@ class JUnitXML(PyModule, object):
         handle_id = self.next_handle_id
         self.next_handle_id += 1
 
-        handle = JUnitHandle(handle_id, self.ro, filename)
+        handle = JUnitHandle(handle_id, self.ro, self.error, filename)
         self.handles[handle_id] = handle
 
         # Open file if filename supplied
@@ -485,8 +513,20 @@ class JUnitXML(PyModule, object):
             handle.close_suite(duration)
 
         elif op == JUnitXML_TestSuite_OpUpdate:
-            # Update operation - not implemented
-            raise self.error('BadSuiteOp')
+            # Update metadata on the current open suite
+            hostname = None
+            uname = None
+            upackage = None
+            if flags & JUnitXML_TestSuite_HostnameSupplied:
+                hostname_ptr = regs[2]
+                hostname = self.ro.memory[hostname_ptr].string if hostname_ptr else None
+            if flags & JUnitXML_TestSuite_UpdateName:
+                name_ptr = regs[3]
+                uname = self.ro.memory[name_ptr].string if name_ptr else None
+            if flags & JUnitXML_TestSuite_UpdatePackage:
+                package_ptr = regs[4]
+                upackage = self.ro.memory[package_ptr].string if package_ptr else None
+            handle.update_suite(hostname, uname, upackage)
 
         elif op == JUnitXML_TestSuite_OpProperty:
             # Set property
