@@ -67,6 +67,9 @@ jobs:
       - echo *** Kill the module ***
       - RMKill JUnitXML
 
+      - echo *** Build documentation ***
+      - /amu -f MakefileDocs INSTDIR=Artifacts
+
       # Construct the artifacts to release
       - echo *** Copy artifacts ***
       - cdir Artifacts
