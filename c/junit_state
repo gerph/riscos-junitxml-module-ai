@@ -458,11 +458,11 @@ int junit_suite_create(
                 ts->hostname,
                 format_id(ts->id, ts->numeric_id, id_buf),
                 ts->timestamp,
-                0,  /* tests count - will be updated later */
-                0,  /* failures count */
-                0,  /* errors count */
-                0,  /* skipped count */
-                0   /* time - will be updated later */
+                -1, /* tests: omitted in streaming mode */
+                -1, /* failures: omitted in streaming mode */
+                -1, /* errors: omitted in streaming mode */
+                -1, /* skipped: omitted in streaming mode */
+                -1  /* time: omitted in streaming mode */
             ) != 0) {
             return -1;
         }
